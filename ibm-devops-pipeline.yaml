@@ -1,0 +1,162 @@
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: ibm-devops-pipeline
+  namespace: default
+spec:
+  params:
+    - name: namespace
+      type: string
+      default: devops-loop
+    - name: mongodb-namespace
+      type: string
+      default: devops-loop
+    - name: mongo-chart-version
+      type: string
+      default: "14.13.0"
+    - name: mongo-image-tag
+      type: string
+      default: "6.0"
+    - name: mongo-image-repo
+      type: string
+      default: bitnami/mongodb
+    - name: mongo-helm-release-name
+      type: string
+      default: devops-loop-mongo
+    - name: mongo-pvc-size
+      type: string
+      default: 20Gi
+    - name: mongo-additional-install-options
+      type: string
+      default: ""
+    - name: file-storage-class
+      type: string
+      default: ocs-external-storagecluster-cephfs
+    - name: block-storage-class
+      type: string
+      default: ocs-external-storagecluster-ceph-rbd
+    - name: license-server
+      type: string
+      default: "169.53.174.40"
+    - name: loop-version
+      type: string
+      default: "1.0.2"
+    - name: additional-helm-options
+      type: string
+      default: ""
+    - name: devops-loop-helm-name
+      type: string
+      default: devops-loop
+  tasks:
+    - name: create-namespace-for-ibm-devops
+      displayName: Create Namespace For IBM DevOps
+      taskRef:
+        kind: Task
+        name: create-namespace
+      params:
+        - name: namespace
+          value: $(params.namespace)
+    - name: deploy-mongodb
+      runAfter:
+        - create-namespace-for-ibm-devops
+      taskSpec:
+        steps:
+          - name: deploy-mongo
+            image: quay.io/openshift/origin-cli:4.16
+            script: |
+              #!/bin/bash
+
+              curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+              chmod 700 get_helm.sh
+              ./get_helm.sh
+
+              MONGO_CHART_VERSION="$(params.mongo-chart-version)"
+              MONGO_IMAGE_TAG="$(params.mongo-image-tag)"
+              MONGO_IMAGE_REPO="$(params.mongo-image-repo)"
+              MONGO_HELM_RELEASE_NAME="$(params.mongo-helm-release-name)"
+              MONGO_NAMESPACE="$(params.mongodb-namespace)"
+              MONGO_PVC_SIZE="$(params.mongo-pvc-size)"
+              helm repo add bitnami https://charts.bitnami.com/bitnami --force-update 1>/dev/null
+              MONGO_INSTALL_OPTIONS="--set image.repository=${MONGO_IMAGE_REPO} --set image.tag=${MONGO_IMAGE_TAG} --set persistence.size=${MONGO_PVC_SIZE} --set global.compatibility.openshift.adaptSecurityContext=auto"
+              RWO_STORAGE_CLASS="$(params.block-storage-class)"
+              MONGO_INSTALL_OPTIONS="${MONGO_INSTALL_OPTIONS} --set persistence.storageClass=${RWO_STORAGE_CLASS}"
+              MONGO_ADDITIONAL_INSTALL_OPTIONS="$(params.mongo-additional-install-options)"
+              if [ -n "${MONGO_ADDITIONAL_INSTALL_OPTIONS}" ]; then
+                MONGO_INSTALL_OPTIONS="${MONGO_INSTALL_OPTIONS} ${MONGO_ADDITIONAL_INSTALL_OPTIONS}"
+              fi
+              helm upgrade --wait --timeout 600s --install ${MONGO_HELM_RELEASE_NAME} --version ${MONGO_CHART_VERSION} ${MONGO_INSTALL_OPTIONS} --namespace=${MONGO_NAMESPACE} --create-namespace bitnami/mongodb 
+              MONGODB_ROOT_PASSWORD=$(oc get secret --namespace ${MONGO_NAMESPACE} ${MONGO_HELM_RELEASE_NAME}-mongodb -o jsonpath="{.data.mongodb-root-password}" | base64 -d)
+              MONGO_URL="mongodb://root:${MONGODB_ROOT_PASSWORD}@${MONGO_HELM_RELEASE_NAME}-mongodb:27017/admin"
+
+    - name: deploy-ibm-ucv-helm-chart
+      runAfter:
+        - deploy-mongodb
+      taskSpec:
+        steps:
+          - name: deploy-loop
+            image: quay.io/openshift/origin-cli:4.16
+            script: |
+              #!/bin/bash
+              curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+              chmod 700 get_helm.sh
+              ./get_helm.sh
+
+              helm repo add ibm-helm https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
+
+              helm pull ibm-helm/ibm-devops-loop --version "$(params.loop-version)"
+              ROOT_DIR=./ibm-devops-loop
+              tar -xvf ibm-devops-loop*.tgz
+              sed -i -e 's/host: {{- include "ucv\.domain" \. }}/host: {{ include "ucv.domain" . }}/' ${ROOT_DIR}/charts/ibm-ucv-prod/templates/routes.yaml
+
+              rm -f ${ROOT_DIR}/charts/ibm-ucv-prod/templates/routes.yaml-e
+
+              sed -i -e '/namespace:/d' ${ROOT_DIR}/charts/ibm-devopscode/templates/network-policy.yaml
+              rm -f ${ROOT_DIR}/charts/ibm-devopscode/templates/network-policy.yaml-e
+
+              DOMAIN=automation.$(oc get -n openshift-ingress-operator ingresscontroller default -o jsonpath='{.status.domain}')
+              PASSWORD_SEED=EOGsIClq5SexCijpqTBEx5IBcBQ1FUtBAMxWF1kiAHs=
+
+              EMAIL_SERVER_HOST=smtp.sendgrid.net
+              EMAIL_SERVER_PORT=2525
+              EMAIL_FROM_ADDRESS=IBMDevopsAutomation@outlook.com
+              EMAIL_SERVER_USERNAME="apikey"
+              EMAIL_SERVER_PASSWORD="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"
+              EMAIL_SERVER_STARTTLS=false
+              EMAIL_SERVER_SMTPS=false
+
+              ACCEPT_LICENSE=true
+              HELM_NAME=$(params.devops-loop-helm-name)
+
+              HELM_OPTIONS="${HELM_OPTIONS:-} \
+              --set global.domain=${DOMAIN} \
+              --set-literal global.passwordSeed=${PASSWORD_SEED} \
+              --set global.platform.smtp.sender=${EMAIL_FROM_ADDRESS} \
+              --set global.platform.smtp.host=${EMAIL_SERVER_HOST} \
+              --set global.platform.smtp.port=${EMAIL_SERVER_PORT} \
+              --set global.platform.smtp.username=${EMAIL_SERVER_USERNAME} \
+              --set global.platform.smtp.password=${EMAIL_SERVER_PASSWORD} \
+              --set global.platform.smtp.startTLS=${EMAIL_SERVER_STARTTLS} \
+              --set global.platform.smtp.smtps=${EMAIL_SERVER_SMTPS} \
+              --set global.ibmCertSecretName=${TLS_CERT_SECRET_NAME} \
+              --set license=${ACCEPT_LICENSE}
+              "
+
+              LICENSE_SERVER="$(params.license-server)"
+              RWX_STORAGE_CLASS="$(params.file-storage-class)"
+              RWO_STORAGE_CLASS="$(params.file-storage-class)"
+
+              if [ -n "${LICENSE_SERVER}" ]; then
+                  HELM_OPTIONS="${HELM_OPTIONS} --set global.rationalLicenseKeyServer=@${LICENSE_SERVER}"
+              fi
+
+              if [ -n "${RWX_STORAGE_CLASS}" ]; then
+                  HELM_OPTIONS="${HELM_OPTIONS} --set global.persistence.rwxStorageClass=${RWX_STORAGE_CLASS}"
+              fi
+
+              if [ -n "${RWO_STORAGE_CLASS}" ]; then
+                  HELM_OPTIONS="${HELM_OPTIONS} --set global.persistence.rwoStorageClass=${RWO_STORAGE_CLASS}"
+              fi
+
+              HELM_OPTIONS="${HELM_OPTIONS} ${ADDITIONAL_HELM_OPTIONS}"
+              helm upgrade --wait --timeout 600s --install ${HELM_NAME} ${ROOT_DIR} --version "$(params.loop-version)" ${HELM_OPTIONS} -n $(params.namespace) -f ${ROOT_DIR}/values-openshift.yaml
