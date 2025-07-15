@@ -1,0 +1,508 @@
+{{- if (eq .Values.ingress.type "mapping") }}
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-1'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-1'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/api/'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-2'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-2'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/datasets/v3/api-docs'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-3'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-3'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/extensions/v3/api-docs'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-4'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-4'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/jobservice/v3/api-docs'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-5'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-5'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/management/'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-6'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-6'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/rest/'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-7'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-7'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/results/analytics/'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-8'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-8'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/results/ftwebreport/'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-9'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-9'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/results/rest/'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-10'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-10'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/results/static/'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-11'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-11'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/results/v3/api-docs'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-12'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-12'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/rm/'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-13'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-13'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/sse/'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-14'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-14'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/sso/'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-15'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-15'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/swagger-resources'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-16'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-16'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/testassets/v3/api-docs'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-17'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-17'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/v3/api-docs'
+  rewrite: ''
+  service: http://gateway:8080
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-18'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-18'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ ternary .Values.ingress.path "/" .Values.global.platform.enabled }}'
+  rewrite: ''
+  service: http://{{ .Release.Name }}-frontend:80
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-19'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-19'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/management/health'
+  rewrite: ''
+  service: http://{{ .Release.Name }}-frontend:80
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-20'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-20'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.keycloak.path }}/health'
+  rewrite: ''
+  service: http://{{ .Release.Name }}-frontend:80
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-21'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-21'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.keycloak.path }}'
+  rewrite: ''
+  service: http://{{ print .Release.Name "-ssocloak" | trunc 20 | trimSuffix "-" }}-http:80
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-22'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-22'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+  prefix: '{{ .Values.ingress.path }}/webhook/'
+  rewrite: ''
+  service: http://tam:8900
+  timeout_ms: 0
+---
+{{- end }}

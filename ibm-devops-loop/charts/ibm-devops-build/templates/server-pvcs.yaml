@@ -1,0 +1,64 @@
+{{- $rwoStorageClass := index .Values "global" "persistence" "rwoStorageClass" | default "" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-build-conf
+  labels:
+{{ include "ibm-devops-build.labels" . | indent 4 }}
+spec:
+  {{- if $rwoStorageClass }}
+  storageClassName: {{ $rwoStorageClass | quote }}
+  {{- end }}
+  accessModes:
+    - {{ .Values.volumes.accessMode | default "ReadWriteOnce" }}
+  resources:
+    requests:
+      storage: {{ .Values.volumes.conf.storage | default "100Mi" }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-build-lib-ext
+  labels:
+{{ include "ibm-devops-build.labels" . | indent 4 }}
+spec:
+  {{- if $rwoStorageClass }}
+  storageClassName: {{ $rwoStorageClass | quote }}
+  {{- end }}
+  accessModes:
+    - {{ .Values.volumes.accessMode | default "ReadWriteOnce" }}
+  resources:
+    requests:
+      storage: {{ .Values.volumes.libExt.storage | default "100Mi" }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-build-plugin
+  labels:
+{{ include "ibm-devops-build.labels" . | indent 4 }}
+spec:
+  {{- if $rwoStorageClass }}
+  storageClassName: {{ $rwoStorageClass | quote }}
+  {{- end }}
+  accessModes:
+    - {{ .Values.volumes.accessMode | default "ReadWriteOnce" }}
+  resources:
+    requests:
+      storage: {{ .Values.volumes.plugin.storage | default "500Mi" }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-build-var
+  labels:
+{{ include "ibm-devops-build.labels" . | indent 4 }}
+spec:
+  {{- if $rwoStorageClass }}
+  storageClassName: {{ $rwoStorageClass | quote }}
+  {{- end }}
+  accessModes:
+    - {{ .Values.volumes.accessMode | default "ReadWriteOnce" }}
+  resources:
+    requests:
+      storage: {{ .Values.volumes.var.storage | default "15Gi" }}

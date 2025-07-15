@@ -1,0 +1,161 @@
+{{- $licenseEnabled := include "{{ .Chart.Name }}.licenseValidate.build" .  | required "License must be accepted by setting Values.license.accept to true." -}}
+{{- if $licenseEnabled }}
+{{- $imageSpec := include "{{ .Chart.Name }}.imageSpec.build" . | trim -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.server.service.name }}
+  labels:
+{{ include "ibm-devops-build.labels" . | indent 4 }}
+spec:
+  strategy:
+    type: Recreate    
+  replicas: {{ .Values.server.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.server.service.name }}
+      app.kubernetes.io/instance: "{{ .Release.Name }}"
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.server.service.name }}
+        app.kubernetes.io/instance: "{{ .Release.Name }}"
+    spec:
+      {{- include "devopsbuild.securityContext" . | nindent 6 }}
+      volumes:
+        - name: build-conf
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-build-conf
+        - name: build-lib-ext
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-build-lib-ext
+        - name: build-plugin
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-build-plugin
+        - name: build-var
+          persistentVolumeClaim:
+            claimName: {{ .Release.Name }}-build-var
+        - name: security-dir
+          emptyDir: {}
+        - name: libext-dir
+          emptyDir: {}
+        {{- if .Values.global.ibmCertSecretName}}
+        {{- $caCert := index (lookup "v1" "Secret" .Release.Namespace .Values.global.ibmCertSecretName).data "ca.crt" -}}
+        {{- if $caCert }}
+        - name: tls-secret-volume
+          secret:
+            secretName: {{ .Values.global.ibmCertSecretName }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+        {{- end }}
+        {{- end }}
+        - name: properties-config
+          configMap:
+            name: {{ .Release.Name }}-properties-config
+        - name: scripts
+          configMap:
+            name: {{ .Release.Name }}-build-scripts
+            defaultMode: 0755
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: mysql-init
+          image: mysql:8.0
+          {{- include "devopsbuild.containerSecurityContext" . | nindent 10 }}
+          env:
+            - name: MYSQL_PWD
+              valueFrom:
+                secretKeyRef:
+                  {{- if .Values.deploy.enabled }}
+                  name: {{ .Release.Name }}-secrets
+                  {{- else }}
+                  name: {{ .Release.Name }}-build-secrets
+                  {{- end }}
+                  key: dbpassword
+            - name: DEVOPSBUILD_DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-build-secrets
+                  key: dbpassword
+          volumeMounts:
+          - name: scripts
+            mountPath: /scripts
+          command: ["/bin/bash", "/scripts/init-mysql.sh"]
+
+        {{- if .Values.global.ibmCertSecretName}}
+        {{- $caCert := index (lookup "v1" "Secret" .Release.Namespace .Values.global.ibmCertSecretName).data "ca.crt" -}}
+        {{- if $caCert }}
+        - name: import-certificate
+          image: {{ $imageSpec | quote }}  # Use the same image as the main container
+          {{- include "devopsbuild.containerSecurityContext" . | nindent 10 }}
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command: ["/bin/bash", "/scripts/import-certificate.sh"]
+          volumeMounts:
+            - name: security-dir
+              mountPath: /security-dir
+            - name: tls-secret-volume
+              mountPath: /tls-secret-volume
+              readOnly: true
+            - name: scripts
+              mountPath: /scripts
+        {{- end }}
+        {{- end }}
+
+        - name: download-jdbc-connector
+          image: {{ $imageSpec | quote }}  # Use the same image as the main container
+          {{- include "devopsbuild.containerSecurityContext" . | nindent 10 }}
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          command: ["/bin/bash", "/scripts/download-jdbc-connector.sh"]
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+            - name: libext-dir
+              mountPath: /etc/libext
+
+      containers:
+        - name: {{ .Values.server.service.name }}
+          image: {{ $imageSpec | quote }}
+          {{- include "devopsbuild.containerSecurityContext" . | nindent 10 }}
+          imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          env:
+          - name: PLATFORM_OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: '{{ tpl (index .Values "platform" "oidc" "clientSecret") . }}'
+                key: oauth-client-secret
+          - name: DEVOPSBUILD_DB_PASS
+            valueFrom:
+              secretKeyRef:
+                name: {{ .Release.Name }}-build-secrets
+                key: dbpassword
+          command: [ "/bin/bash", "-c", "/etc/scripts/server-start.sh"]
+          ports:
+            - containerPort: {{ .Values.server.service.ports.https }}
+            - containerPort: {{ .Values.server.service.ports.http }}
+            - containerPort: {{ .Values.server.service.ports.agent }}
+          volumeMounts:
+            - name: build-conf
+              mountPath: /opt/devops-build-server/conf
+            - name: build-lib-ext
+              mountPath: /opt/devops-build-server/lib/ext
+            - name: build-plugin
+              mountPath: /opt/devops-build-server/plugin
+            - name: build-var
+              mountPath: /opt/devops-build-server/var
+            - name: properties-config
+              mountPath: /etc/config
+            {{- if .Values.global.ibmCertSecretName }}
+            {{- $caCert := index (lookup "v1" "Secret" .Release.Namespace .Values.global.ibmCertSecretName).data "ca.crt" -}}
+            {{- if $caCert }}
+            - name: security-dir
+              mountPath: /usr/local/ibm-java-sdk/jre/lib/security
+            {{- end }}
+            {{- end }}
+            - name: scripts
+              mountPath: /etc/scripts
+            - name: libext-dir
+              mountPath: /etc/libext
+{{- end }}

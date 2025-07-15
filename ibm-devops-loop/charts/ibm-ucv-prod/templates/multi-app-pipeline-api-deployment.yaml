@@ -1,0 +1,185 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multi-app-pipeline-api
+  labels:
+    {{- include "ucv.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- $vars := merge (dict) . -}}
+      {{- $_ := set $vars "ucvService" "multi-app-pipeline-api" -}}
+      {{- include "ucv.selector" $vars | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- $vars := merge (dict) . -}}
+        {{- $_ := set $vars "ucvService" "multi-app-pipeline-api" -}}
+        {{- include "ucv.specTemplateLabels" $vars | nindent 8 }}
+      annotations:
+        {{- include "ucv.productAnnotations" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      imagePullSecrets:
+        {{- include "ucv.imagePullSecrets" . | nindent 8 }}
+      affinity:
+        {{- $vars := merge (dict) . -}}
+        {{- $_ := set $vars "ucvWorkloadClass" "transactional" -}}
+        {{- include "ucv.nodeAffinity" $vars | nindent 8 }}
+      initContainers:
+        - name: init-amqp
+          image:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvImageRegistry" .Values.imageRegistry.redhat -}}
+            {{- $_ := set $vars "ucvImageName" "ubi9/ubi-minimal" -}}
+            {{- $_ := set $vars "ucvImageTag" "latest" -}}
+            {{- include "ucv.external.image" $vars | nindent 12 }}
+          imagePullPolicy: IfNotPresent
+          resources:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "init-container" -}}
+            {{- include "ucv.resources" $vars | nindent 12 }}
+          securityContext:
+            {{- include "ucv.securityContext" . | nindent 12 }}
+          command: ['sh', '-c', 'until [ "$(curl -s -o /dev/null -w "%{http_code}" http://velocity-rabbitmq:15672)" == "200" ]; do echo waiting for amqp; sleep 5; done;']
+      containers:
+        - name: multi-app-pipeline-api
+          image:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvImageRegistry" .Values.imageRegistry.velocityRegistry -}}
+            {{- $_ := set $vars "ucvImageRegistryPath" .Values.imageRegistry.velocityPath -}}
+            {{- $_ := set $vars "ucvImageName" "multi-app-pipeline-api" -}}
+            {{- $_ := set $vars "ucvImageTag" "5.1.6.6" -}}
+            {{- include "ucv.image" $vars | nindent 12 }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9090
+          env:
+            - name: NODE_OPTIONS
+              {{- $vars := merge (dict) . -}}
+              {{- $_ := set $vars "ucvService" "multi-app-pipeline-api" -}}
+              {{- include "ucv.maxOldSpaceSize" $vars | nindent 14 }}
+            - name: NODE_ENV
+              value: container
+            - name: PORT
+              value: '9090'
+            - name: mongo__db
+              value: multi-app-pipeline
+            - name: LOG_LEVEL
+              value: {{ .Values.loglevel }}
+            - name: mongo__url
+              {{- include "ucv.mongoUrl" . | nindent 14 }}
+            - name: appPath
+              value: /v1/multi-app-pipeline
+            - name: authToken
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: apiToken
+            - name: securityApi__url
+              value: http://security-api:3911
+            - name: securityApi__auth_secret
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: hmacKey
+            - name: cipher__key
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: cipherToken
+            - name: hmac__key
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: hmacKey
+            - name: deployPlanApi__url
+              value: {{ printf "http://continuous-release-ui:3000%sdeploymentPlans" (ternary "/" (printf "/%s/" (.Values.ingress.path | trimPrefix "/" | trimSuffix "/")) (eq .Values.ingress.path "/")) }}
+            - name: deployPlanApi__cipherKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: cipherToken
+            - name: deployPlanApi__hmacKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: hmacKey
+            - name: applicationApi__url
+              value: http://application-api:3499
+            - name: bearerToken
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: apiToken
+            - name: registrationApi__token
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: apiToken
+            - name: integrationApi__token
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: apiToken
+            - name: releaseEventsApi__cipherKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: cipherToken
+            - name: releaseEventsApi__hmacKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: hmacKey
+            - name: releaseEventsApi__url
+              value: http://release-events-api:8080/graphql
+            - name: amqp__host
+              value: velocity-rabbitmq
+            - name: amqp__port
+              value: '5672'
+            - name: amqp__user
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.rabbit }}
+                  key: user
+            - name: amqp__password
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.rabbit }}
+                  key: password
+            - name: BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: apiToken
+            - name: ROOT_URL
+              value: {{ template "root.url.appHome" . }}
+            - name: OPEN_TELEMETRY
+              value: {{ .Values.openTelemetryEnabled }}
+            - name: OPEN_TELEMETRY_LOG_LEVEL
+              value: {{ .Values.openTelemetryLogLevel }}
+            - name: OPEN_TELEMETRY_COLLECTOR
+              value: {{ index .Values "opentelemetry-collector" "fullnameOverride" }}
+          resources:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "multi-app-pipeline-api" -}}
+            {{- include "ucv.resources" $vars | nindent 12 }}
+          securityContext:
+            {{- include "ucv.securityContext" . | nindent 12 }}
+          livenessProbe:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "multi-app-pipeline-api" -}}
+            {{- $_ := set $vars "ucvLivenessPort" 9090 -}}
+            {{- include "ucv.livenessProbe" $vars | nindent 12 }}
+          readinessProbe:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "multi-app-pipeline-api" -}}
+            {{- $_ := set $vars "ucvReadinessPort" 9090 -}}
+            {{- include "ucv.readinessProbe" $vars | nindent 12 }}
+          {{- include "ucv.mongoVolumeMounts" . | nindent 10 }}
+      {{- include "ucv.mongoVolumes" . | nindent 6 }}

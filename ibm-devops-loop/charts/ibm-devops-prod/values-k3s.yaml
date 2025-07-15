@@ -1,0 +1,32 @@
+global:
+  persistence:
+    rwxAccessMode: ReadWriteOnce
+
+ingress:
+  cert:
+    selfSigned: true
+
+networkPolicy:
+  enabled: true
+  ingress:
+    namespaceLabel: kubernetes.io/metadata.name
+    namespaceValue: emissary
+
+priorityClassName: critical
+priorityClassValue: 1000
+
+execution:
+  extraEnv:
+    EXECUTION_WORKBENCH_MONITORING_DOCKER_ENABLED: "true"
+  ingress:
+    hostPattern: 'in-*.{{ .Values.global.domain }}'
+  priorityClassName: non-critical
+  priorityClassValue: -1000
+
+results:
+  extraEnv:
+    RESULTS_ANALYTICS_PROXY_STRICT_CERT_CHECKS: "false"
+
+tests:
+  pull:
+    api: true

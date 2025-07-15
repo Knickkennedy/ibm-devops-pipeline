@@ -1,0 +1,14 @@
+{{- if eq (.Values.database.createDatabase) (true) }}
+{{- include "sch.config.init" (list . "ibm-ucd-prod.sch.chart.config.values") -}}
+{{- $fullName := include "sch.names.fullName" (list .) -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullName }}-mysql
+spec:
+  ports:
+  - port: 3306
+    name: mysql
+  selector:
+    app: {{ $fullName }}-mysql
+{{- end }}

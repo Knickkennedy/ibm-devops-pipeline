@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "devops-platform.componentFullname" (dict "componentName" "loop" "context" .) }}
+  labels:
+    {{- include "devops-platform.labels" (dict "componentName" "loop" "context" .) | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.loop.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "devops-platform.selectorLabels" (dict "componentName" "loop" "context" .) | nindent 4 }}
+

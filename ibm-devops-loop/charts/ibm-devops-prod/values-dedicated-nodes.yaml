@@ -1,0 +1,10 @@
+#schedule workload on dedicated nodes
+
+execution:
+  nodeSelector:
+    execution: allow
+  toleration:
+    key: reserved
+    operator: Equal
+    value: reserved
+    effect: NoSchedule

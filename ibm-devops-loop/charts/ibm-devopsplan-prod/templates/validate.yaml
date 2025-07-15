@@ -1,0 +1,14 @@
+{{- /*
+This dummy ConfigMap ensures the validation runs during install.
+*/ -}}
+
+{{- if eq .Release.Name "devopsplan" }}
+{{- fail "`devopsplan` is a restricted Helm release name. Please use a different name like 'ibm-devopsplan-prod'." }}
+{{- end }}
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: validate-release-name-{{ .Release.Name }}
+data:
+  validation: "ok"

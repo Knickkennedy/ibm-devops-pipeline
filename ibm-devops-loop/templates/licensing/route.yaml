@@ -1,0 +1,33 @@
+{{- if (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  labels:
+    {{- include "devops-platform.labels" (dict "componentName" "licensing-route" "context" .) | nindent 4 }}
+  name: {{ include "devops-platform.componentFullname" (dict "componentName" "licensing-root-route" "context" .) }}
+spec:
+  host: {{ .Values.global.domain | quote }}
+  path: {{ .Values.licensing.ingress.path | quote }}
+  subdomain: ''
+  to:
+    kind: Service
+    name: {{ include "devops-platform.componentFullname" (dict "componentName" "licensing" "context" .) }}
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    {{- $certSecretName := .Values.global.ibmCertSecretName | default .Values.global.hclCertSecretName }}
+    {{ if $certSecretName }}
+    key: {{ index (lookup "v1" "Secret" .Release.Namespace .Values.global.ibmCertSecretName).data "tls.key" | b64dec | quote }}
+    certificate: {{ index (lookup "v1" "Secret" .Release.Namespace .Values.global.ibmCertSecretName).data "tls.crt" | b64dec | quote }}
+    {{- $caCert := index (lookup "v1" "Secret" .Release.Namespace .Values.global.ibmCertSecretName).data "ca.crt" -}}
+    {{- if $caCert }}
+    caCertificate: {{ $caCert | b64dec | quote }}
+    {{- end }}
+    {{- end }}
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+status:
+  ingress: []
+{{- end }}

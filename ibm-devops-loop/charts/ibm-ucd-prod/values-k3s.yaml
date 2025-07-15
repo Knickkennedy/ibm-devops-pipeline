@@ -1,0 +1,7 @@
+# an overlay for values.yaml intended to help make installation easier on single node k3s
+appDataVolume:
+  size: 64Gi
+  storageClassName: local-path
+extLibVolume:
+  size: 2Gi
+  storageClassName: local-path

@@ -1,0 +1,88 @@
+#
+# Licensed Materials - Property of HCL
+# (C) Copyright HCL Technologies Ltd. 2024, 2025.  All Rights Reserved.
+# Note to U.S. Government Users Restricted Rights:
+# Use, duplication or disclosure restricted by GSA ADP Schedule Contract
+#
+
+## @param initContainers.resources.limits initContainers.limits Kubernetes resource limits for init containers
+## @param initContainers.resources.requests.cpu initContainers.requests.cpu Kubernetes cpu resource limits for init containers
+## @param initContainers.resources.requests.memory initContainers.requests.memory Kubernetes memory resource limits for init containers
+initContainers:
+  resources:
+    limits: {}
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+## @section deployment
+#
+## @param resources Kubernetes resources
+resources:
+  {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   {}
+  # requests:
+  #   cpu: 25m
+  #   memory: 128Mi
+  #   ephemeral-storage: 64Mi
+
+## @section Persistence
+#
+## @param persistence.accessModes AccessMode for persistence
+persistence:
+  accessModes:
+    - ReadWriteMany
+  storageClass: nfs-client
+
+## @param replicaCount number of replicas for the deployment
+replicaCount: 3
+
+ingress:
+  type: mapping
+  cert:
+    selfSigned: true
+  host:
+    enabled: false
+
+networkPolicy:
+  enabled: true
+  ingress:
+    namespaceLabel: kubernetes.io/metadata.name
+    namespaceValue: emissary
+
+execution:
+  ingress:
+    hostPattern: 'in-*.{{ .Values.global.domain }}'
+
+## @section redis-cluster
+## @param redis-cluster.enabled Enable redis cluster
+## @param redis-cluster.usePassword Whether to use password authentication
+## @param redis-cluster.cluster.nodes Number of redis cluster master nodes
+## @param redis-cluster.cluster.replicas Number of redis cluster master node replicas
+## @descriptionStart
+## Redis cluster and [Redis](#redis) cannot be enabled at the same time.
+## @descriptionEnd
+redis-cluster:
+  enabled: true
+  usePassword: false
+  persistence:
+    size: 2Gi
+  cluster:
+    nodes: 3 # default: 6
+    replicas: 0 # default: 1
+
+## @section redis
+## @param redis.enabled Enable redis standalone or replicated
+## @descriptionStart
+## Redis and [Redis cluster](#redis-cluster) cannot be enabled at the same time.
+## @descriptionEnd
+redis:
+  enabled: false
+
+global:
+  defaultStorageClass: nfs-client

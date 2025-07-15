@@ -1,0 +1,24 @@
+{{- if (.Capabilities.APIVersions.Has "getambassador.io/v2") }}
+
+{{- $prefix := .Values.global.serviceDomainPrefix | default "" -}}
+
+{{- if $prefix }}
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    {{- include "devops-platform.labels" (dict "componentName" "service-redirect" "context" .) | nindent 4 }}
+  name: {{ include "devops-platform.componentFullname" (dict "componentName" "service-redirect" "context" .) }}
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  hostname: {{ (printf "%s%s%s" $prefix .Values.global.domain "(.*)?" ) }}
+  prefix: /
+  service: {{ .Values.global.domain }} 
+  host_redirect: true
+  path_redirect: {{ .Values.global.platform.path }}
+  scheme_redirect: https
+{{- end }}
+
+{{- end }}

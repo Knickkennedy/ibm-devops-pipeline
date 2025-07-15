@@ -1,0 +1,22 @@
+{{- if include "testhub.rabbitmq.enabled" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-rabbitmq'
+spec:
+  ports:
+  - name: amqp
+    port: 5672
+    targetPort: amqp
+  selector:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/name: rabbitmq
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+{{- end }}

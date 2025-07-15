@@ -1,0 +1,40 @@
+#
+# Licensed Materials - Property of HCL
+# (C) Copyright HCL Technologies Ltd. 2024, 2025.  All Rights Reserved.
+# Note to U.S. Government Users Restricted Rights:
+# Use, duplication or disclosure restricted by GSA ADP Schedule Contract
+#
+{{- if and (eq .Values.ingress.type "mapping")
+           .Values.ingress.host.enabled
+           .Values.global.ibmCertSecretName
+           (not .Values.global.plan.enabled)
+           (not .Values.global.platform.enabled) }}
+apiVersion: getambassador.io/v2
+kind: Host
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Release.Name }}-wildcard'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-wildcard'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  hostname: '*'
+  tlsSecret:
+    name: '{{ .Values.global.ibmCertSecretName }}'
+  tls:
+    min_tls_version: v1.2
+    cipher_suites:
+      - '[ECDHE-ECDSA-AES128-GCM-SHA256|ECDHE-ECDSA-CHACHA20-POLY1305]'
+      - '[ECDHE-RSA-AES128-GCM-SHA256|ECDHE-RSA-CHACHA20-POLY1305]'
+      - ECDHE-ECDSA-AES256-GCM-SHA384
+      - ECDHE-RSA-AES256-GCM-SHA384
+  requestPolicy:
+    insecure:
+      action: Redirect
+{{- end }}

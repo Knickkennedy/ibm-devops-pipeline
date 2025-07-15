@@ -1,0 +1,28 @@
+{{- if .Values.enabled }}
+{{- if or (.Values.global.sofySolutionContext) (eq .Values.ingress.type "mapping") }}
+apiVersion: getambassador.io/v3alpha1
+kind: Mapping
+metadata:
+  name: {{ include "ollama.fullname" . }}
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.emissaryID }}' ]
+{{- end }}
+  bypass_auth: true
+  case_sensitive: false
+  host_regex: true
+{{- if .Values.global.platform.enabled }}
+  host: {{ .Values.global.domain }}
+  prefix: '{{ .Values.basePath }}/'
+  rewrite: /
+{{- else }}
+  host: {{ include "ollama.fullname" . }}{{ .Values.ingress.suffix }}.{{ default ".*" .Values.global.domain }}
+  prefix: /.*
+  resolver: {{ include "ccm.subchart.fullname" . }}
+  prefix_regex: true
+  rewrite: ""
+{{- end }}
+  service: http://{{ include "ollama.fullname" . }}:11434
+  timeout_ms: {{ .Values.ingressMapping.timeout_ms }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,21 @@
+dependencies:
+- name: ibm-devopsplan-prod
+  repository: https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
+  version: 3.0.4
+- name: ibm-ucd-prod
+  repository: https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
+  version: 8.0.18
+- name: ibm-devops-prod
+  repository: https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
+  version: 11.0.5
+- name: ibm-ucv-prod
+  repository: https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
+  version: 5.1.6
+- name: ibm-devopscode
+  repository: file://charts/ibm-devopscode
+  version: 1.0.2
+- name: ibm-devops-build
+  repository: https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
+  version: 1.0.1
+digest: sha256:3c176a209f55328152bd6dfbdbf2443e4856e73ff815b4d9b3a54264bdb0f65a
+generated: "2025-06-28T21:15:37.550498814+05:30"

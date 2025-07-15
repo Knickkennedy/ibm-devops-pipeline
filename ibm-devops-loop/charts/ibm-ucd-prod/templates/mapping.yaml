@@ -1,0 +1,29 @@
+{{- if (.Capabilities.APIVersions.Has "getambassador.io/v2") }}
+{{- if or (.Values.ingress.host) (((.Values.global).platform).enabled) }}
+{{- include "sch.config.init" (list . "ibm-ucd-prod.sch.chart.config.values") -}}
+{{- $fullName := include "sch.names.fullName" (list .) -}}
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  name: {{ $fullName }}
+  labels:
+{{ include "sch.metadata.labels.standard" (list . "mapping") | indent 4 }}
+spec:
+{{- if eq (((.Values.global).platform).enabled) (true) }}
+  host: {{ .Values.global.domain }}
+  prefix: {{ .Values.ingress.path }}
+  bypass_auth: true
+  rewrite: ""
+  timeout_ms: 10000
+{{- else }}
+  host: {{ .Values.ingress.host }}
+  timeout_ms: 0
+  prefix: /
+{{- end }}
+{{- if .Values.secureConnections.required }}
+  service: https://{{ $fullName }}:8443
+{{- else }}
+  service: http://{{ $fullName }}:8080
+{{- end }}
+{{- end }}
+{{- end }}

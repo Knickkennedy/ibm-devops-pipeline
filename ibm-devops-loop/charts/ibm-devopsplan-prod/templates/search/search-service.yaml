@@ -1,0 +1,19 @@
+{{- if .Values.search.service -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ccm.fullname" . }}-search
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  ports:
+    - name: https
+      port: {{ .Values.search.targetPort }}
+      targetPort: {{ .Values.search.targetPort }}
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: {{ include "ccm.name" . }}-search
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}

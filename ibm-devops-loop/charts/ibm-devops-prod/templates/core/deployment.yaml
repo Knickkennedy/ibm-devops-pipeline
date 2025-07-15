@@ -1,0 +1,270 @@
+{{- if include "testhub.core.enabled" . }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: core
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-core'
+spec:
+{{- if gt (int .Values.core.replicaCount) 1 }}
+  replicas: {{ .Values.core.replicaCount }}
+{{- end }}
+  revisionHistoryLimit: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: '{{ .Release.Name }}'
+      app.kubernetes.io/name: core
+      app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        productID: e3e180b0faae4301b54c5c9b37319e5c
+        productMetric: FLOATING_USER
+        productName: IBM Rational Test Automation Server Basic
+        productVersion: "11.0.5"
+        cloudpakName : IBM DevOps for IBM Cloud Paks
+        cloudpakId : dedb7a9445a44fb88c927c1658243cd1
+        cloudpakMetric : RESOURCE_UNIT
+        productCloudpakRatio : "1:1"
+        productChargedContainers : All
+      labels:
+        app.kubernetes.io/instance: '{{ .Release.Name }}'
+        app.kubernetes.io/name: core
+        app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+{{- if .Values.priorityClassName }}
+      priorityClassName: '{{ .Values.priorityClassName }}'
+{{- end }}
+      containers:
+      - env:
+        - name: CHART_APPVERSION
+          value: '{{ .Chart.AppVersion }}'
+        - name: CHART_VERSION
+          value: '{{ .Chart.Version }}'
+        - name: gateway.addon.addonCredentials
+          valueFrom:
+            secretKeyRef:
+              key: addon-registration-secret
+              name: '{{ .Release.Name }}-router'
+        - name: INGRESS_DOMAIN
+          value: '{{ .Values.global.domain }}'
+        - name: KEYCLOAK_AUTH_SERVER_URL
+          value: https://$(INGRESS_DOMAIN){{ .Values.keycloak.path }}
+        - name: KEYCLOAK_REALM
+          value: '{{ .Values.keycloak.realm }}'
+        - name: KEYCLOAK_CREDENTIAL_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: oauth-client-secret
+              name: '{{ .Release.Name }}-core'
+        - name: KEYCLOAK_URLSCONFIG_ENABLED
+          value: 'true'
+        - name: KEYCLOAK_URLSCONFIG_PUBLICURL
+          value: https://$(INGRESS_DOMAIN)
+        - name: RATIONAL_LICENSE_FILE
+          value: '{{ default .Values.global.rationalLicenseKeyServer .Values.rationalLicenseKeyServer }}'
+        - name: SECRETS_STORAGE_KEY
+          valueFrom:
+            secretKeyRef:
+              key: secrets-storage-key
+              name: '{{ .Release.Name }}-core'
+        - name: OAUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: oauth-client-secret
+              name: '{{ .Release.Name }}-core'
+        - name: SPRING_APPLICATION_JSON
+          value: >
+            {
+              "info": {
+                "links" : {
+{{- if .Values.global.platform.enabled }}
+                  "embed": "https://$(INGRESS_DOMAIN){{ tpl .Values.global.platform.links.embed . }}",
+                  "logout": "https://$(INGRESS_DOMAIN){{ tpl .Values.global.platform.oidc.logoutPath . }}?client_id=testserver",
+{{- else }}
+                  "logout": "https://$(INGRESS_DOMAIN){{ tpl .Values.global.platform.oidc.logoutPath . }}?client_id=testserver&post_logout_redirect_uri=https://$(INGRESS_DOMAIN)/",
+{{- end }}
+                  "account" : "https://$(INGRESS_DOMAIN){{ .Values.keycloak.path }}/realms/{{ .Values.keycloak.realm }}/account"
+                }
+              },
+              "server": {
+                "forward-headers-strategy": "NATIVE",
+                "servlet": {
+                  "context-path" : "{{ .Values.ingress.path }}"
+                }
+              },
+{{- if gt (int .Values.core.replicaCount) 1 }}
+              "hazelcast": {
+                "discovery": {
+                  "broadcast": false
+                }
+              },
+{{- end }}
+              "spring": {
+{{- if gt (int .Values.core.replicaCount) 1 }}
+                "cache": {
+                  "type": "hazelcast"
+                  },
+{{- end }}
+                "security": {
+                  "oauth2": {
+                    "resourceserver": {
+                      "jwt": {
+                        "issuer-uri": "https://$(INGRESS_DOMAIN){{ .Values.keycloak.path }}/realms/{{ .Values.keycloak.realm }}"
+                      }
+                    },
+                    "client": {
+                      "registration": {
+                        "keycloak": {
+                          "client-id": "testserver",
+                          "client-secret": "$(OAUTH_CLIENT_SECRET)"
+                        }
+                      },
+                      "provider": {
+                        "keycloak": {
+                          "authorization-uri": "https://$(INGRESS_DOMAIN){{ .Values.keycloak.path }}/realms/{{ .Values.keycloak.realm }}/protocol/openid-connect/auth",
+                          "token-uri": "https://$(INGRESS_DOMAIN){{ .Values.keycloak.path }}/realms/{{ .Values.keycloak.realm }}/protocol/openid-connect/token",
+                          "user-info-uri": "https://$(INGRESS_DOMAIN){{ .Values.keycloak.path }}/realms/{{ .Values.keycloak.realm }}/protocol/openid-connect/userinfo",
+                          "jwk-set-uri": "https://$(INGRESS_DOMAIN){{ .Values.keycloak.path }}/realms/{{ .Values.keycloak.realm }}/protocol/openid-connect/certs"
+                        }
+                      }
+                    }
+                  }
+                },
+                "datasource": {
+                  "url": "jdbc:postgresql://{{ .Release.Name }}-postgresql:5432/gateway",
+                  "username": "gateway"
+                },
+                "rabbitmq": {
+                  "host": "{{ .Release.Name }}-rabbitmq",
+                  "port": "5672",
+                  "username": "user"
+                }
+              },
+              "gateway": {
+                "cors": {
+{{- if .Values.router.allowedOrigin }}
+                  "allowed-origin-patterns": "https://$(INGRESS_DOMAIN),{{ .Values.router.allowedOrigin }}",
+{{- else }}
+                  "allowed-origin-patterns": "",
+{{- end }}
+                  "allowed-methods": "*",
+                  "allowed-headers": "*",
+                  "exposed-headers": "Authorization,Link,X-Total-Count",
+                  "allow-credentials": "true",
+                  "max-age": "1800"
+                },
+                "platform": {
+                  "enabled": {{ .Values.global.platform.enabled }}
+                }
+              }
+            }
+        - name: SPRING_DATASOURCE_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgresql-password
+              name: '{{ .Release.Name }}-core'
+        - name: SPRING_PROFILES_ACTIVE
+          value: prod,automation,swagger
+        - name: SPRING_RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: rabbitmq-password
+              name: '{{ .Release.Name }}-rabbitmq'
+{{- range $key, $value := .Values.core.extraEnv }}
+        - name: {{ $key }}
+          value: {{ tpl $value $ | quote }}
+{{- end }}
+        image: '{{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.core.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.core.image .Values.imageRepoRepl }}'
+        imagePullPolicy: IfNotPresent
+        startupProbe:
+          failureThreshold: 20
+          httpGet:
+            path: '{{ .Values.ingress.path }}/management/health'
+            port: http
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: '{{ .Values.ingress.path }}/management/health'
+            port: http
+        readinessProbe:
+          httpGet:
+            path: '{{ .Values.ingress.path }}/management/health'
+            port: http
+        name: main
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+{{- if .Values.core.resources }}
+        resources: {{- toYaml .Values.core.resources | nindent 10 }}
+{{- end }}
+{{- template "testhub.container.security-context" .Values.containerSecurityContext }}
+        volumeMounts:
+{{- if gt (int .Values.core.replicaCount) 1 }}
+{{- template "testhub.volumeMounts.kube-api-access" }}
+{{- end }}
+{{- template "testhub.volumeMounts.trust-store" $ }}
+{{- if include "testhub.ibmImagePullSecret" . }}
+      imagePullSecrets:
+      - name: '{{ include "testhub.ibmImagePullSecret" . }}'
+{{- end }}
+      initContainers:
+{{- template "testhub.initContainers.trust-store" $ }}
+      - name: keycloak
+        command:
+        - sh
+        - -ec
+        - |
+          ./wait.sh $KEYCLOAK_URL/realms/$REALM_NAME/
+          ./client-create.sh
+        env:
+{{- template "testhub.container.keycloak-init-sh-env" $ }}
+        - name: STANDARD_FLOW
+          value: 'true'
+        - name: AUTHORIZATION_SERVICES
+          value: 'true,"authorizationSettings":{"scopes":[{"name":"ARCHITECT"},{"name":"FORBIDDEN"},{"name":"OWNER"},{"name":"PROJECT_CREATOR"},{"name":"SPACE_OWNER"},{"name":"SPACE_USER"},{"name":"TESTER"},{"name":"VIEWER"}]}'
+        - name: ROLE_MAPPINGS
+          value: realm-management:manage-realm:manage-clients:manage-authorization:view-users:query-users:impersonation
+        - name: LOGOUT_FRAGMENT
+          value: '"attributes": {"frontchannel.logout.url": "https://$(INGRESS_DOMAIN){{ .Values.ingress.path }}/api/logout"}'
+        - name: BASE_URL
+          value: '"baseUrl": "https://$(INGRESS_DOMAIN){{ .Values.ingress.path }}"'
+        - name: CLIENT_ID
+          value: testserver
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: oauth-client-secret
+              name: '{{ .Release.Name }}-core'
+{{- template "testhub.container.keycloak-init-sh-trailer" $ }}
+{{- template "testhub.initContainers.pg-isready" (merge (dict "dbName" "gateway" "secret" (printf "%s-core" .Release.Name)) .) }}
+{{- template "testhub.initContainers.liquibase-update" (merge (dict "svc" "core" "dbName" "gateway") .) }}
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+{{- template "testhub.pod.security-context" $ }}
+      serviceAccountName: '{{ .Release.Name }}-core'
+      volumes:
+{{- if gt (int .Values.core.replicaCount) 1 }}
+{{- template "testhub.volumes.kube-api-access" }}
+{{- end }}
+{{- template "testhub.volumes.trust-store" $ }}
+{{- template "testhub.volumes.keycloak-init-sh" $ }}
+{{- end }}

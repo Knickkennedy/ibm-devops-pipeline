@@ -1,0 +1,21 @@
+qualification:
+  levelName: "ibm-certified-container"
+  levelDescription: "IBM Certified Container"
+  issueDate: "01/2021"
+  duration: "12M"
+  terms: "Valid from date of issue. Security vulnerability management and enhancements are delivered on the latest version of the chart and images."
+prereqs:
+  security:
+    kubernetes:
+      podSecurityPolicy:
+        name: "ibm-restricted-psp"
+    openshift:
+      securityContextConstraints:
+        name: "restricted"
+    ibmCloudPrivate:
+      installerRole:
+        name: "Operator"
+
+k8sDistros:
+    kubernetes:
+      semver: ">=1.19.0"

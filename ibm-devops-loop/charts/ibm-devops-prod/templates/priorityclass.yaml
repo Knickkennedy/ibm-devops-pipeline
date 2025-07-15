@@ -1,0 +1,17 @@
+{{- if .Values.priorityClassName }}
+{{- if .Values.priorityClassValue }}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Values.priorityClassName }}'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Values.priorityClassName }}'
+value: {{ .Values.priorityClassValue }}
+globalDefault: false
+{{- end }}
+{{- end }}

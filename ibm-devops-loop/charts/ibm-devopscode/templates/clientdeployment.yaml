@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "devops-platform.componentFullname" (dict "componentName" "code" "context" .) }}
+  labels:
+    app: devops-code-client
+    devops-code: code
+spec:
+  ports:
+  - name: http
+    port: {{ .Values.clientservice.port }}
+    targetPort: 8080
+  selector:
+    app: devops-code-client
+    devops-code: code
+  type: {{ .Values.clientservice.type }}    
+---
+apiVersion: apps/v1 
+kind: Deployment
+metadata:
+  name: devops-code-client
+  labels:
+    app: devops-code-client
+    devops-code: code
+spec:
+  replicas: {{ .Values.clientimage.replicaCount }}
+  selector:
+    matchLabels:
+      app: devops-code-client
+      devops-code: code
+  template:
+    metadata:
+      labels:
+        app: devops-code-client
+        devops-code: code
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+      - name: init-env
+        image: {{ .Values.global.imageRegistry }}/{{ .Values.clientimage.imageName }}:{{ .Values.clientimage.tag}}
+        securityContext:
+          runAsNonRoot : true
+          privileged: false
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        command:
+        - sh
+        - -c
+        args:
+        - |
+          cp -r /etc/nginx/* /usr/share/temp/;
+          {{- if (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+            sed -i 's|resolveurl|dns-default.openshift-dns.svc.cluster.local|' /usr/share/temp/nginx.conf;
+          {{- else }}
+            sed -i 's|resolveurl|kube-dns.kube-system kube-dns.kube-system.svc.cluster.local|' /usr/share/temp/nginx.conf;
+          {{- end }}
+        imagePullPolicy: {{ .Values.clientimage.pullPolicy }}
+        volumeMounts:
+        - name: nginx-volume-temp
+          mountPath: /usr/share/temp   
+      containers:
+      - name: devops-code-client
+        image: {{ .Values.global.imageRegistry }}/{{ .Values.clientimage.imageName }}:{{ .Values.clientimage.tag}}
+        securityContext:
+          runAsNonRoot : true
+          privileged: false
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+        command:
+        - sh
+        - -c
+        args:
+        - |
+          cp -r /usr/share/temp/* /etc/nginx/;
+          nginx -g 'daemon off;'
+        imagePullPolicy: {{ .Values.clientimage.pullPolicy }}
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: nginx-volume-temp
+          mountPath: /usr/share/temp
+        - name: nginx-conf-dir
+          mountPath: /etc/nginx
+        - name: nginx-shared-dir
+          mountPath: /tmp
+      volumes:
+      - name: nginx-volume-temp
+        emptyDir: {}  
+      - name: nginx-conf-dir
+        emptyDir: {}
+      - name: nginx-shared-dir
+        emptyDir: {}           

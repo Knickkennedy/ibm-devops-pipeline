@@ -1,0 +1,526 @@
+{{- if .Values.analytics.service -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "ccm.fullname" . }}-analytics
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "ccm.fullname" . }}-analytics
+  replicas: {{ .Values.analytics.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ccm.name" . }}-analytics
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/managed-by: {{ .Release.Service }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "ccm.name" . }}-analytics
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+      annotations:
+  {{- if eq "IBM" .Values.global.devopsPlanBrand }}
+        productName: {{ .Values.annotations.ibm.productName }}
+        productID: {{ .Values.annotations.ibm.productID }}
+        productVersion: {{ .Values.annotations.ibm.productVersion }}
+        productMetric: {{ .Values.annotations.ibm.productMetric }}
+        productChargedContainers: {{ .Values.annotations.ibm.productChargedContainers }}
+  {{ else }}
+        productName: {{ .Values.annotations.hcl.productName }}
+        productVersion: {{ .Values.annotations.hcl.productVersion }}
+  {{- end }}
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: {{ .Values.analytics.nodeAffinity.key }}
+                operator: In
+                values:
+                - {{ .Values.analytics.nodeAffinity.values }}
+    {{- if .Values.analytics.podAffinity.enabled }}
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - {{ include "ccm.fullname" . }}
+            topologyKey: "kubernetes.io/hostname"
+   {{- end }}
+   {{- if .Values.analytics.topologySpreadConstraints.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: {{ .Values.analytics.topologySpreadConstraints.maxSkew }}
+          topologyKey: {{ .Values.analytics.topologySpreadConstraints.topologyKey }}
+          whenUnsatisfiable: {{ .Values.analytics.topologySpreadConstraints.whenUnsatisfiable }}
+          labelSelector:
+            matchLabelKeys:
+              app.kubernetes.io/name: {{ include "ccm.name" . }}-analytics
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/managed-by: {{ .Release.Service }}
+  {{- end }}
+  {{- if or (.Values.global.imagePullSecret) (.Values.global.imagePullSecrets) }}
+      imagePullSecrets:
+  {{- if .Values.global.imagePullSecret }}
+      - name: {{ .Values.global.imagePullSecret }}
+  {{- end }}
+      {{- range .Values.global.imagePullSecrets }}
+      - name: {{ . }}
+      {{- end }}
+  {{- end }}
+      securityContext:
+  {{ if .Values.nonRootUser }}
+        runAsNonRoot: true
+  {{- if not (.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        fsGroup: {{ .Values.securityContext.fsGroup }}
+  {{- end }}
+  {{- else }}
+        fsGroup: 2000
+  {{- end }}
+      volumes:
+      {{- if .Values.persistence.enabled }}
+      {{- if .Values.persistence.ccm.enabled }}
+      {{- if .Values.persistence.ccm.config.enabled }}
+        - name: sharedconfig
+          persistentVolumeClaim:
+      {{- if .Values.persistence.ccm.config.existingClaim }}
+            claimName: .Values.persistence.ccm.config.existingClaim
+      {{- else }}
+            claimName: config-{{ include "ccm.fullname" . }}
+      {{- end }}
+      {{- else }}
+          emptyDir: {}
+      {{- end }}
+      {{- if .Values.persistence.ccm.share.enabled }}
+        - name: shareddata
+          persistentVolumeClaim:
+      {{- if .Values.persistence.ccm.share.existingClaim }}
+            claimName: .Values.persistence.ccm.share.existingClaim
+      {{- else }}
+            claimName: share-{{ include "ccm.fullname" . }}
+      {{- end }}
+      {{- else }}
+          emptyDir: {}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.persistence.connectOption.ccm }}
+        - name: oracle-secure
+          hostPath:
+            path: "{{ .Values.persistence.connectOption.path }}"
+      {{- end }}
+      {{- end }}
+      {{- if .Values.persistence.enabled }}
+      {{- if .Values.persistence.analytics.enabled }}
+      {{- if .Values.persistence.analytics.config.enabled }}
+        - name: config
+          persistentVolumeClaim:
+      {{- if .Values.persistence.analytics.config.existingClaim }}
+            claimName: .Values.persistence.analytics.config.existingClaim
+      {{- else }}
+            claimName: config-{{ include "ccm.fullname" . }}-analytics
+      {{- end }}
+      {{- else }}
+          emptyDir: {}
+      {{- end }}
+      {{- if .Values.persistence.analytics.share.enabled }}
+        - name: share
+          persistentVolumeClaim:
+      {{- if .Values.persistence.analytics.share.existingClaim }}
+            claimName: .Values.persistence.analytics.share.existingClaim
+      {{- else }}
+            claimName: share-{{ include "ccm.fullname" . }}-analytics
+      {{- end }}
+      {{- else }}
+          emptyDir: {}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{ if .Values.ssl.enabled }}
+        - name: ssl-conf
+          configMap:
+            name: "{{ .Values.ssl.configMapName }}"
+      {{- end }}
+  {{- if .Values.priorityClassName }}
+      priorityClassName: {{ include "ccm.fullname" . }}-{{ .Values.priorityClassName }}
+  {{- end }}
+      initContainers:
+        - name: init-ccm-readiness
+          image: "curlimages/curl:7.76.1"
+          env:
+          - name: CCM_SERVICE_URL
+      {{- if .Values.global.platform.enabled }}
+            value: http://{{ include "ccm.fullname" . }}:8191/plan/
+      {{- else }}
+            value: https://{{ include "ccm.fullname" . }}:8190/
+      {{- end }}
+          command: ["sh", "-c", "while [[ $(curl -s -k -o /dev/null -w '%{http_code}' $CCM_SERVICE_URL) != 200 ]]; do sleep 1; echo $(date +'%Y-%m-%d_%H%M%S'): Devopsplan service $(CCM_SERVICE_URL) is not ready; done"]
+      {{- if .Values.ccm.initResources }}
+          resources: {{- toYaml .Values.ccm.initResources | nindent 12 }}
+      {{- end }}
+          securityContext:
+            runAsNonRoot: true
+  {{- if not (.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
+            runAsUser: {{ .Values.securityContext.runAsUser }}
+##            fsGroup: {{ .Values.securityContext.fsGroup }}
+  {{- end }}
+            privileged: false
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+      {{- if .Values.persistence.enabled }}
+      {{- if .Values.persistence.analytics.enabled }}
+      {{- if or (eq .Values.persistence.analytics.data.enabled true) (eq .Values.persistence.analytics.config.enabled true) }}
+        - name: prepare-config-volume
+      {{- if .Values.image.repoDigests }}
+          image: "{{ include "ccm.ccmImageRepo" . }}/{{ .Values.analytics.image.repository }}@{{ .Values.analytics.image.tag }}"
+      {{- else }}
+          image: "{{ include "ccm.ccmImageRepo" . }}/{{ .Values.analytics.image.repository }}:{{ .Values.analytics.image.tag }}"
+      {{- end }}    
+          imagePullPolicy: {{ .Values.analytics.image.pullPolicy }}
+      {{- if .Values.nonRootUser }}
+          securityContext:
+            privileged: false
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+      {{- end }}
+          command:
+            - /work/data-config-properties.sh
+          volumeMounts:
+      {{- if .Values.persistence.analytics.data.enabled }}
+            - name: data
+              mountPath: /tmp/data
+      {{- end }}
+      {{- if .Values.persistence.analytics.config.enabled }}
+            - name: config
+              mountPath: /tmp/config
+      {{- end }}
+      {{- if .Values.persistence.analytics.share.enabled }}
+            - name: share
+              mountPath: /tmp/share
+      {{- end }}
+      {{- if .Values.ccm.initResources }}
+          resources: {{- toYaml .Values.ccm.initResources | nindent 12 }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{- with .Values.hostAliases }}
+      hostAliases:
+{{ toYaml . | indent 6 }}
+      {{- end }}
+      hostname:  "{{ .Values.analytics.hostname }}"
+      serviceAccount: {{ include "ccm.fullname" . }}-sa
+      containers:
+        - name: {{ .Chart.Name }}-analytics
+      {{- if .Values.image.repoDigests }}
+          image: "{{ include "ccm.ccmImageRepo" . }}/{{ .Values.analytics.image.repository }}@{{ .Values.analytics.image.tag }}"
+      {{- else }}
+          image: "{{ include "ccm.ccmImageRepo" . }}/{{ .Values.analytics.image.repository }}:{{ .Values.analytics.image.tag }}"
+      {{- end }}
+          imagePullPolicy: {{ .Values.analytics.image.pullPolicy }}
+      {{- if .Values.nonRootUser }}      
+          securityContext:
+            privileged: false
+            readOnlyRootFilesystem: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+      {{- end }}
+          ports:
+      {{- if .Values.global.platform.enabled }}
+            - name: http
+              containerPort: 8291
+      {{- end }}
+            - name: https
+              containerPort: {{ .Values.analytics.targetPort }}
+              protocol: TCP
+      {{- if semverCompare ">=1.16-0" .Capabilities.KubeVersion.Version }}
+      {{- if .Values.probes.startup.analytics.enabled }}
+          startupProbe:
+            httpGet:
+      {{- if .Values.global.platform.enabled }}
+              path: {{ .Values.probes.http.analyticsPlatform.path }}
+              port: {{ .Values.analytics.targetPortPlatform }}
+              scheme: {{ .Values.probes.http.analyticsPlatform.scheme }}
+      {{- else }}
+              path: {{ .Values.probes.http.analytics.path }}
+              port: {{ .Values.analytics.targetPort }}
+              scheme: {{ .Values.probes.http.analytics.scheme }}
+      {{- end }}
+            initialDelaySeconds: {{ .Values.probes.startup.analytics.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.analytics.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.startup.analytics.timeoutSeconds }}
+            successThreshold: {{ .Values.probes.startup.analytics.successThreshold }}
+            failureThreshold: {{ .Values.probes.startup.analytics.failureThreshold }}
+      {{- end }}
+      {{- end }}
+      {{- if .Values.probes.liveness.analytics.enabled }}
+          livenessProbe:
+            exec:
+              command:
+              - /bin/bash
+              - -c
+              - if [[ -z "$(pgrep -a java  | grep analytics-rest-analytics-server | awk '{ print $1; }')" ]]; then exit 1; fi
+            initialDelaySeconds: {{ .Values.probes.liveness.analytics.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.analytics.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.analytics.timeoutSeconds }}
+            successThreshold: {{ .Values.probes.liveness.analytics.successThreshold }}
+            failureThreshold: {{ .Values.probes.liveness.analytics.failureThreshold }}
+      {{- end }}
+      {{- if .Values.probes.readiness.analytics.enabled }}
+          readinessProbe:
+            httpGet:
+      {{- if .Values.global.platform.enabled }}
+              path: {{ .Values.probes.http.analyticsPlatform.path }}
+              port: {{ .Values.analytics.targetPortPlatform }}
+              scheme: {{ .Values.probes.http.analyticsPlatform.scheme }}
+      {{- else }}
+              path: {{ .Values.probes.http.analytics.path }}
+              port: {{ .Values.analytics.targetPort }}
+              scheme: {{ .Values.probes.http.analytics.scheme }}
+      {{- end }}
+            initialDelaySeconds: {{ .Values.probes.readiness.analytics.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.analytics.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.analytics.timeoutSeconds }}
+            successThreshold: {{ .Values.probes.readiness.analytics.successThreshold }}
+            failureThreshold: {{ .Values.probes.readiness.analytics.failureThreshold }}
+      {{- end }}
+          env:
+      {{ if .Values.swagger.enabled }}
+            - name: ENABLE_SWAGGER
+              value: "{{ .Values.swagger.enabled }}"
+      {{- end }}           
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-secret
+                  key: jwt-secret
+      {{- if eq "IBM" .Values.global.devopsPlanBrand }}
+            - name: DEVOPS_PLAN_BRAND
+              value: "IBM"
+      {{- else }}
+            - name: DEVOPS_PLAN_BRAND
+              value: "HCL"
+      {{- end }}
+      {{- if .Values.global.platform.enabled }}
+            - name: PLATFORM_ENABLED
+              value: "TRUE"
+      {{- if .Values.global.platform.path }}
+            - name: PLATFORM_PATH
+              value: {{ .Values.global.platform.path }}
+      {{- end }}        
+      {{- end }}
+            - name: CQ_DATABASES
+              value: {{ include "analytics.app-folder" . }}/shareddata
+            - name: KUBERNETES
+              value: "TRUE"
+      {{ if .Values.db.service }}
+            - name: DB_CONNECTION_SET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ccm.fullname" . }}-db-secret
+                  key: db-connection-set
+      {{- end }}
+      {{- if .Values.timeZone }}
+            - name: TIME_ZONE
+              value: {{ .Values.timeZone }}
+      {{- end }}
+      {{ if .Values.ssl.enabled }}
+            - name: SSL_KEY_ALIAS
+              value: "{{ .Values.ssl.keyAlias }}"
+            - name: SSL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "ccm.fullname" . }}-db-secret
+                  key: ssl-password
+      {{- end }}
+      {{- if .Values.analytics.java_opts }}
+            - name: JAVA_OPTS
+              value: "{{ .Values.analytics.java_opts }}"
+      {{- end }}
+      {{- if .Values.service.urlMapping }}
+            - name: CCM_URL
+              value: "{{ .Values.service.urlMapping }}"
+      {{- else if .Values.global.domain }}
+            - name: CCM_URL
+      {{- if .Values.global.platform.enabled }}
+              value: https://{{ .Values.global.domain }}{{ .Values.ingress.path }}
+      {{- else }}
+              value: https://{{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}
+      {{- end }}
+      {{- else if .Values.global.sofySolutionContext }}
+            - name: MY_SUB_DOMAIN
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Release.Name }}-domain
+                  key: HOST
+            - name: CCM_URL
+              value: https://{{ include "ccm.fullname" . }}.$(MY_SUB_DOMAIN)
+      {{- else if .Values.serverQualifiedUrlPath }}
+            - name: CCM_URL
+              value: "{{ .Values.serverQualifiedUrlPath }}"
+      {{- else if .Values.service.exposePort }}
+            - name: CCM_EXPOSE_PORT
+              value: "{{ .Values.service.exposePort }}"
+      {{- end }}
+            - name: TENANT_URL_BASE
+      {{- if .Values.global.platform.enabled }}
+              value: https://{{ include "ccm.fullname" . }}:{{ .Values.service.targetPort }}/plan
+      {{- else }}
+              value: https://{{ include "ccm.fullname" . }}:{{ .Values.service.targetPort }}
+      {{- end }}
+      {{- if .Values.tenant.datastore.enabled }}
+            - name: TENANT_DATASTORE_TOKEN
+              value: "{{ .Values.tenant.datastore.token }}"
+            - name: TENANT_DATASTORE_SECRET
+              value: "{{ .Values.tenant.datastore.secret }}"
+      {{- end }}
+      {{- if .Values.tenant.corelogontokenclient.usesecure }}
+            - name: TENANT_USESECURE
+              value: "{{ .Values.tenant.corelogontokenclient.usesecure }}"
+      {{- end }}
+      {{- if .Values.analytics.loggingLevel  }}
+            - name: LOGGING_LEVEL
+              value: "{{ .Values.analytics.loggingLevel }}"
+      {{- end }}
+            - name: CQ_DIAG_OUTPUT
+      {{- if .Values.analytics.cqDiagOutput  }}
+              value: "{{ .Values.analytics.cqDiagOutput }}"
+      {{- else }}
+              value: {{ include "analytics.app-folder" . }}/logs/cqtrace.log
+      {{- end }}
+      {{- if .Values.analytics.cqDiagTrace  }}
+            - name: CQ_DIAG_TRACE
+              value: "{{ .Values.analytics.cqDiagTrace }}"
+      {{- end }}
+      {{- if .Values.analytics.cqDiagReport  }}
+            - name: CQ_DIAG_REPORT
+              value: "{{ .Values.analytics.cqDiagReport }}"
+      {{- end }}
+          volumeMounts:
+      {{- if .Values.persistence.ccm.share.enabled }}
+            - name: shareddata
+              mountPath: {{ include "analytics.app-folder" . }}/shareddata
+      {{- end }}
+      {{- if .Values.persistence.ccm.config.enabled }}
+            - name: sharedconfig
+              mountPath: {{ include "analytics.app-folder" . }}/sharedconfig
+      {{- end }}
+      {{ if .Values.persistence.connectOption.ccm }}
+            - name: oracle-secure
+              mountPath: /opt/tmp/oracle
+      {{- end }}
+      {{- if .Values.persistence.enabled }} 
+      {{- if .Values.persistence.analytics.enabled }}
+      {{- if .Values.persistence.analytics.data.enabled }}
+            - name: data
+              mountPath: {{ include "analytics.app-folder" . }}/data
+      {{- end }}
+      {{- if .Values.persistence.analytics.config.enabled }}
+            - name: config
+              mountPath: {{ include "analytics.app-folder" . }}/config
+      {{- end }}
+      {{- if .Values.persistence.analytics.share.enabled }}
+            - name: share
+              mountPath: {{ include "analytics.app-folder" . }}/share
+      {{- end }}
+      {{- if .Values.persistence.analytics.logs.enabled }}
+            - name: logs
+              mountPath: {{ include "analytics.app-folder" . }}/logs
+      {{- end }}
+      {{- end }}
+      {{- end }}
+      {{ if .Values.ssl.enabled }}
+            - name: ssl-conf
+              mountPath: {{ include "analytics.app-folder" . }}/data/ssl
+      {{- end }} 
+          resources:
+            {{- toYaml .Values.analytics.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+{{- if .Values.persistence.enabled }}
+{{- if .Values.persistence.analytics.enabled }}
+  volumeClaimTemplates:
+{{- if .Values.persistence.analytics.data.enabled }}
+  - metadata:
+      name: data
+      labels:
+        app.kubernetes.io/name: {{ include "ccm.name" . }}-analytics
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{- with .Values.analytics.annotations  }}
+      annotations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    spec:
+      accessModes:
+      {{ toYaml .Values.persistence.analytics.data.accessModes | indent 4 }}
+{{- if .Values.persistence.analytics.storageClass }}
+      storageClassName: '{{ .Values.persistence.analytics.storageClass }}'
+{{- else if .Values.persistence.storageClass }}
+      storageClassName: '{{ .Values.persistence.storageClass }}'
+{{- else if .Values.global.persistence.rwoStorageClass }}
+      storageClassName: {{ .Values.global.persistence.rwoStorageClass | quote }}
+{{- else if .Values.global.persistence.rwxStorageClass }}
+      storageClassName: {{ .Values.global.persistence.rwxStorageClass | quote }}
+{{- end }}
+      resources:
+        requests:
+          storage: "{{ .Values.persistence.analytics.data.size }}"
+{{- end }}
+
+{{- if .Values.persistence.analytics.logs.enabled }}
+  - metadata:
+      name: logs
+      labels:
+        app.kubernetes.io/name: {{ include "ccm.name" . }}-analytics
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+    {{- with .Values.analytics.annotations  }}
+      annotations:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    spec:
+      accessModes:
+      {{ toYaml .Values.persistence.analytics.logs.accessModes | indent 4 }}
+{{- if (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+{{- if .Values.persistence.analytics.storageClass }}
+      storageClassName: '{{ .Values.persistence.analytics.storageClass }}'
+{{- else if .Values.global.persistence.rwoStorageClass }}
+      storageClassName: {{ .Values.global.persistence.rwoStorageClass | quote }}
+{{- end }}
+{{- else }}
+{{- if .Values.persistence.storageClass }}
+      storageClassName: '{{ .Values.persistence.storageClass }}'
+{{- else if .Values.global.persistence.rwoStorageClass }}
+      storageClassName: {{ .Values.global.persistence.rwoStorageClass | quote }}
+{{- end }}
+{{- end }}
+      resources:
+        requests:
+          storage: "{{ .Values.persistence.analytics.logs.size }}"
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end -}}

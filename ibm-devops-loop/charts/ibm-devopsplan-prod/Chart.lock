@@ -1,0 +1,9 @@
+dependencies:
+- name: data-prepper
+  repository: ""
+  version: 0.1.0
+- name: keycloak-srv
+  repository: ""
+  version: 24.5.1
+digest: sha256:3d8ef02ef687c3300cdca29371113f3229a9d443c71f0227642d05026df90812
+generated: "2025-04-19T19:24:14.921174251-04:00"

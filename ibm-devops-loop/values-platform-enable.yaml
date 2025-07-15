@@ -1,0 +1,11 @@
+platform:
+  deploy:
+    enabled: true
+  velocity:
+    enabled: true
+  plan:
+    enabled: true
+  code:
+    enabled: true
+  build:
+    enabled: true

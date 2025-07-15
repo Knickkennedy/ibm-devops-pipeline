@@ -1,0 +1,17 @@
+{{- if (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: devops-code
+  namespace: devops-automation
+spec:
+  podSelector: {}
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              devops-code: code
+          namespaceSelector: {}
+  policyTypes:
+    - Ingress
+{{- end }}

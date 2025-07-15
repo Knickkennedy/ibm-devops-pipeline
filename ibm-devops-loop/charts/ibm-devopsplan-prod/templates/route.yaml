@@ -1,0 +1,136 @@
+{{- if (eq .Values.ingress.type "route") }}
+{{- $fullName := include "ccm.fullname" . -}}
+{{- if .Values.devopsplan.service }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "ccm.fullname" . }}
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+spec:
+{{- if .Values.global.platform.enabled }}
+  host: {{ .Values.global.domain }}
+  path: {{ .Values.ingress.path  }}
+  tls:
+    termination: edge
+  port:
+    targetPort: http
+{{ else }}
+  host: {{ include "ccm.fullname" . }}.{{ .Values.global.domain }}
+  tls:
+    termination: passthrough
+  port:
+    targetPort: https
+{{- end }}
+  to:
+    kind: Service
+    name: {{ $fullName }}
+  wildcardPolicy: None
+---
+{{- end }}
+{{- if not .Values.global.platform.enabled }}
+{{- if .Values.keycloak.enabled }}
+{{- if .Values.keycloaksrv.enabled }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "ccm.fullname" . }}-keycloak
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+spec:
+  host: {{ include "ccm.fullname" . }}-keycloaksrv.{{ .Values.global.domain }}
+  tls:
+    termination: passthrough
+    insecureEdgeTerminationPolicy: None
+##    insecureEdgeTerminationPolicy: Redirect
+  port:
+    targetPort: https
+  to:
+    kind: Service
+    name: {{ template "keycloaksrv.common.names.fullname" . }}-keycloaksrv
+    weight: 100
+  wildcardPolicy: None
+---
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.nginx.service }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "ccm.fullname" . }}-nginx
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+spec:
+{{- if .Values.global.platform.enabled }}
+  host: {{ .Values.global.domain }}
+  path: {{ .Values.dashboards.basePath  }}
+  tls:
+    termination: edge
+  port:
+    targetPort: http2
+{{ else }}
+  host: {{ include "ccm.fullname" . }}-nginx.{{ .Values.global.domain }}
+  tls:
+    termination: passthrough
+  port:
+    targetPort: https
+{{- end }}
+  to:
+    kind: Service
+    name: {{ $fullName }}-nginx
+  wildcardPolicy: None
+---
+{{- end }}
+{{- if .Values.analytics.service }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "ccm.fullname" . }}-analytics
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+spec:
+{{- if .Values.global.platform.enabled }}
+  host: {{ .Values.global.domain }}
+  path: {{ .Values.analytics.basePath  }}
+  tls:
+    termination: edge
+  port:
+    targetPort: http
+{{ else }}
+  host: {{ include "ccm.fullname" . }}-analytics.{{ .Values.global.domain }}
+  tls:
+    termination: passthrough
+  port:
+    targetPort: https
+  tls:
+    termination: passthrough
+{{- end }}
+  to:
+    kind: Service
+    name: {{ $fullName }}-analytics
+  wildcardPolicy: None
+---
+{{- end }}
+{{- if not .Values.global.platform.enabled }}
+{{- if .Values.postgresql.enabled -}}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "ccm.fullname" . }}-postgresql
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+spec:
+  host: {{ include "ccm.fullname" . }}-postgresql.{{ .Values.global.domain }}
+  tls:
+    termination: passthrough
+  port:
+    targetPort: https
+  to:
+    kind: Service
+    name: {{ $fullName }}-postgresql
+  wildcardPolicy: None
+---
+{{- end }}
+{{- end }}
+{{- end }}

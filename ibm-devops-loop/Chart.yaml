@@ -1,0 +1,30 @@
+apiVersion: v2
+appVersion: 1.0.2
+dependencies:
+- condition: platform.plan.enabled
+  name: ibm-devopsplan-prod
+  repository: https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
+  version: 3.0.4
+- condition: platform.deploy.enabled
+  name: ibm-ucd-prod
+  repository: https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
+  version: 8.0.18
+- name: ibm-devops-prod
+  repository: https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
+  version: 11.0.5
+- condition: platform.velocity.enabled
+  name: ibm-ucv-prod
+  repository: https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
+  version: 5.1.6
+- condition: platform.code.enabled
+  name: ibm-devopscode
+  repository: file://charts/ibm-devopscode
+  version: 1.0.2
+- condition: platform.build.enabled
+  name: ibm-devops-build
+  repository: https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
+  version: 1.0.1
+description: A Helm chart for the IBM DevOps Loop
+name: ibm-devops-loop
+type: application
+version: 1.0.2

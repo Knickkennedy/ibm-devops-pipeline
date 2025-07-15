@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ucv-jwt-gen
+  labels:
+    {{- include "ucv.labels" . | nindent 4 }}
+imagePullSecrets:
+  {{- include "ucv.imagePullSecrets" . | nindent 2 }}
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ucv-jwt-gen
+  labels:
+    {{- include "ucv.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "create"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ucv-jwt-gen
+  labels:
+    {{- include "ucv.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ucv-jwt-gen
+subjects:
+- kind: ServiceAccount
+  name: ucv-jwt-gen
+  namespace: {{ .Release.Namespace }}
+
+---
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jwt-key-secret-generator
+  labels:
+    {{- include "ucv.labels" . | nindent 4 }}
+spec:
+  ttlSecondsAfterFinished: 0
+  template:
+    metadata:
+      labels:
+        {{- $vars := merge (dict) . -}}
+        {{- $_ := set $vars "ucvService" "jwt-key-secret-generator" -}}
+        {{- include "ucv.specTemplateLabels" $vars | nindent 8 }}
+      annotations:
+        {{- include "ucv.productAnnotations" . | nindent 8 }}
+    spec:
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      imagePullSecrets:
+        {{- include "ucv.imagePullSecrets" . | nindent 8 }}
+      affinity:
+        {{- $vars := merge (dict) . -}}
+        {{- $_ := set $vars "ucvWorkloadClass" "external" -}}
+        {{- include "ucv.nodeAffinity" $vars | nindent 8 }}
+      restartPolicy: Never
+      serviceAccountName: ucv-jwt-gen
+      containers:
+        - name:  jwt-key-secret-generator
+          image:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvImageRegistry" .Values.imageRegistry.docker -}}
+            {{- $_ := set $vars "ucvImageName" "bitnami/kubectl" -}}
+            {{- $_ := set $vars "ucvImageTag" "1.22.13" -}}
+            {{- include "ucv.external.image" $vars | nindent 12 }}
+          imagePullPolicy: IfNotPresent
+          command:
+          - /bin/bash
+          - -c
+          - |
+              SECRET_NAME="{{.Values.secrets.jwt}}"
+              EXISTING_SECRET=$(kubectl get secret ${SECRET_NAME} -o name 2>&1)
+              if [[ "$EXISTING_SECRET" == "secret/${SECRET_NAME}" ]]; then
+                echo "Secret '${SECRET_NAME}' already exists"
+                exit 0
+              fi
+              echo "Creating secret '${SECRET_NAME}'..."
+              openssl genrsa -out /tmp/keypair.pem 2048
+              openssl rsa -in /tmp/keypair.pem -pubout -out /tmp/public.key
+              openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in /tmp/keypair.pem -out /tmp/private.key
+              set -e
+              cat <<EOF | kubectl create -f -
+                apiVersion: v1
+                kind: Secret
+                type: Opaque
+                metadata:
+                  name: '${SECRET_NAME}'
+                  labels:
+                    {{- include "ucv.labels" . | nindent 20 }}
+                data:
+                  public.key: $(cat /tmp/public.key | base64 | tr -d '\n')
+                  private.key: $(cat /tmp/private.key | base64 | tr -d '\n')
+              EOF
+          resources:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "jwt-key-secret-generator" -}}
+            {{- include "ucv.resources" $vars | nindent 12 }}
+          securityContext:
+            {{- include "ucv.securityContext" . | nindent 12 }}
+          livenessProbe:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "jwt-key-secret-generator" -}}
+            {{- $_ := set $vars "ucvLivenessPort" 9090 -}}
+            {{- include "ucv.livenessProbe" $vars | nindent 12 }}
+          readinessProbe:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "jwt-key-secret-generator" -}}
+            {{- $_ := set $vars "ucvReadinessPort" 9090 -}}
+            {{- include "ucv.readinessProbe" $vars | nindent 12 }}

@@ -1,0 +1,21 @@
+{{- if include "testhub.execution.enabled" . }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: execution
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-execution'
+roleRef:
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+  name: '{{ .Release.Name }}-execution'
+subjects:
+- kind: ServiceAccount
+  name: '{{ .Release.Name }}-execution'
+  namespace: '{{ .Release.Namespace }}'
+{{- end }}

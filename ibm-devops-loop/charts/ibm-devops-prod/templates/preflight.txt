@@ -1,0 +1,58 @@
+{{- if not .Values.license -}}
+  {{- fail "To install the product --set license=true is required. The agreement can be found in the LICENSES directory." -}}
+{{- end -}}
+{{- if (not .Values.global.domain) -}}
+  {{- fail "value global.domain must be set with web address to expose the product on." -}}
+{{- end -}}
+{{- if (not (default .Values.global.passwordSeed .Values.passwordSeed)) -}}
+  {{- fail "value passwordSeed must be set with seed to generate passwords with." -}}
+{{- end -}}
+
+{{- $ingressDomain := .Values.global.domain -}}
+{{- /* General test for length of ingress domain... */}}
+{{- if gt (len $ingressDomain) 253 }}
+  {{- $tooLongBy := sub (len $ingressDomain) 253 -}}
+  {{- $chars := ternary "character" "characters" (eq 1 $tooLongBy) -}}
+  {{- $failMsg := (print "global.domain is too long (>253 characters, reduce by at least " $tooLongBy " " $chars ")") -}}
+  {{- fail $failMsg -}}
+{{- end -}}
+
+{{- /* ...and its segments */}}
+{{- range (split "." $ingressDomain) -}}
+  {{- if gt (len .) 63 -}}
+    {{- $tooLongBy := sub (len .) 63 -}}
+    {{- $chars := ternary "character" "characters" (eq 1 $tooLongBy) -}}
+    {{- $failMsg := (print "Segment of global.domain is greater than 63 characters: " . " (reduce by at least " $tooLongBy " " $chars ")") -}}
+    {{- fail $failMsg -}}}
+  {{- end -}}
+{{- end -}}
+
+{{- if .Values.preflight.validateHostPattern -}}
+  {{- /* check that generated hosts will be valid */}}
+  {{- $hostPattern := (tpl .Values.execution.ingress.hostPattern $) -}}
+  {{- /* '*' will be replaced by (a maximum of) 32 characters.  Max length of a hostname is 253 characters (253-(32-1) = 222) */}}
+  {{- if gt (len $hostPattern) 222 -}}
+    {{- $tooLongBy := sub (len $hostPattern) 222 -}}
+    {{- $chars := ternary "character" "characters" (eq 1 $tooLongBy) -}}
+    {{- $failMsg := (print "global.domain is too long, dynamically generated hostnames will be invlaid (reduce by at least " $tooLongBy " " $chars ")") -}}
+    {{- fail $failMsg -}}
+  {{- end -}}
+  {{- $hostPatternParts := split "." $hostPattern -}}
+  {{- /* Ensure that first part of pattern won't generate a segment longer than 63 characters */}}
+  {{- if gt (len $hostPatternParts._0) 32 -}}
+    {{- $tooLongBy := sub (len $hostPatternParts._0) 32 -}}
+    {{- $chars := ternary "character" "characters" (eq 1 $tooLongBy) -}}
+    {{- $failMsg := (print "First segment for stub host (derived from global.domain) is too long: " $hostPatternParts._0 " (reduce by at least " $tooLongBy " " $chars ")") -}}
+    {{- fail $failMsg -}}
+  {{- end -}}
+{{- end -}}
+
+{{- if gt (len .Release.Name) 27 -}}
+  {{- fail "Release name is too long" -}}
+{{- end }}
+
+{{- if .Values.ingress.path -}}
+{{- if or (not (hasPrefix "/" .Values.ingress.path)) (hasSuffix "/" .Values.ingress.path) -}}
+  {{- fail (printf "Value ingress.path=%s must start with slash and not end with one" .Values.ingress.path) -}}
+{{- end }}
+{{- end }}

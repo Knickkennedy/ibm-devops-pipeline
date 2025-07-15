@@ -1,0 +1,93 @@
+{{- if not .Values.backupRestore.enabled }}
+{{- if .Values.persistence.enabled -}}
+{{- if .Values.winInstall.enabled -}}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: win-install-{{ template "ccm.fullname" . }}
+{{- with .Values.persistence.annotations  }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+  labels:
+{{ include "ccm.labels" . | indent 4 }}
+spec:
+  accessModes:
+  {{ toYaml .Values.winInstall.accessModes | indent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.winInstall.size | quote }}
+{{- if and (.Values.persistence.ccm.storageClass) (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+  storageClassName: '{{ .Values.persistence.ccm.storageClass }}'
+{{- else if .Values.persistence.storageClass }}
+  storageClassName: '{{ .Values.persistence.storageClass }}'
+{{- else if .Values.global.persistence.rwxStorageClass }}
+  storageClassName: {{ .Values.global.persistence.rwxStorageClass | quote }}
+{{- else if .Values.global.persistence.rwoStorageClass }}
+  storageClassName: {{ .Values.global.persistence.rwoStorageClass | quote }}
+{{- end }}
+{{- end }}
+
+---
+{{- if .Values.persistence.ccm.enabled -}}
+---
+{{- if and .Values.persistence.ccm.config.enabled (not .Values.persistence.ccm.config.existingClaim) }}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: config-{{ template "ccm.fullname" . }}
+{{- with .Values.persistence.annotations  }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+  labels:
+{{ include "ccm.labels" . | indent 4 }}
+spec:
+  accessModes:
+  {{ toYaml .Values.persistence.ccm.config.accessModes | indent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.ccm.config.size | quote }}
+{{- if and (.Values.persistence.ccm.storageClass) (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+  storageClassName: '{{ .Values.persistence.ccm.storageClass }}'
+{{- else if .Values.persistence.storageClass }}
+  storageClassName: '{{ .Values.persistence.storageClass }}'
+{{- else if .Values.global.persistence.rwxStorageClass }}
+  storageClassName: {{ .Values.global.persistence.rwxStorageClass | quote }}
+{{- else if .Values.global.persistence.rwoStorageClass }}
+  storageClassName: {{ .Values.global.persistence.rwoStorageClass | quote }}
+{{- end }}
+{{- end }}
+
+---
+{{- if and .Values.persistence.ccm.share.enabled (not .Values.persistence.ccm.share.existingClaim) }}
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: share-{{ template "ccm.fullname" . }}
+{{- with .Values.persistence.annotations  }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+  labels:
+{{ include "ccm.labels" . | indent 4 }}
+spec:
+  accessModes:
+  {{ toYaml .Values.persistence.ccm.share.accessModes | indent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.ccm.share.size | quote }}
+{{- if and (.Values.persistence.ccm.storageClass) (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+  storageClassName: '{{ .Values.persistence.ccm.storageClass }}'
+{{- else if .Values.persistence.storageClass }}
+  storageClassName: '{{ .Values.persistence.storageClass }}'
+{{- else if .Values.global.persistence.rwxStorageClass }}
+  storageClassName: {{ .Values.global.persistence.rwxStorageClass | quote }}
+{{- else if .Values.global.persistence.rwoStorageClass }}
+  storageClassName: {{ .Values.global.persistence.rwoStorageClass | quote }}
+{{- end }}
+{{- end }}
+
+{{- end }}
+{{- end -}}
+{{- end -}}

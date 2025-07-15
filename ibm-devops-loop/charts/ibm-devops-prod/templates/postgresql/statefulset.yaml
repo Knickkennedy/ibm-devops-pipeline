@@ -1,0 +1,369 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.kubernetes.io/component: primary
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-postgresql'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: '{{ .Release.Name }}'
+      app.kubernetes.io/name: postgresql
+      app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+      # app.kubernetes.io/component: primary
+      role: primary
+  serviceName: '{{ .Release.Name }}-postgresql-headless'
+  template:
+    metadata:
+      annotations:
+        checksum/config: '{{ include (print $.Template.BasePath "/postgresql/configmap.yaml") . | sha256sum }}'
+        productID: e3e180b0faae4301b54c5c9b37319e5c
+        productMetric: FLOATING_USER
+        productName: IBM Rational Test Automation Server Basic
+        productVersion: "11.0.5"
+        cloudpakName : IBM DevOps for IBM Cloud Paks
+        cloudpakId : dedb7a9445a44fb88c927c1658243cd1
+        cloudpakMetric : RESOURCE_UNIT
+        productCloudpakRatio : "1:1"
+        productChargedContainers : All
+      labels:
+        app.kubernetes.io/component: primary
+        app.kubernetes.io/instance: '{{ .Release.Name }}'
+        app.kubernetes.io/name: postgresql
+        app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+        role: primary
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+{{- if .Values.priorityClassName }}
+      priorityClassName: '{{ .Values.priorityClassName }}'
+{{- end }}
+{{- if .Values.postgresql.migrate.enabled }}
+      initContainers:
+      - name: mount-old
+        image: '{{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.postgresql.migrate.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.postgresql.migrate.image .Values.imageRepoRepl }}'
+        volumeMounts:
+          - mountPath: /oldpostgresql
+            name: old-postgresql
+          - mountPath: /bitnami/postgresql
+            name: data
+          - mountPath: /dev/shm
+            name: dshm
+          - mountPath: /opt/bitnami/postgresql/conf/conf.d
+            name: postgresql-config
+        env:
+        - name: BITNAMI_DEBUG
+          value: 'true'
+        - name: PGDATA
+          value: /bitnami/postgresql/data
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgresql-password
+              name: '{{ .Release.Name }}-postgresql'
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRESQL_CLIENT_MIN_MESSAGES
+          value: error
+        - name: POSTGRESQL_ENABLE_LDAP
+          value: 'no'
+        - name: POSTGRESQL_ENABLE_TLS
+          value: 'no'
+        - name: POSTGRESQL_LOG_CONNECTIONS
+          value: 'false'
+        - name: POSTGRESQL_LOG_DISCONNECTIONS
+          value: 'false'
+        - name: POSTGRESQL_LOG_HOSTNAME
+          value: 'false'
+        - name: POSTGRESQL_PGAUDIT_LOG_CATALOG
+          value: 'off'
+        - name: POSTGRESQL_PORT_NUMBER
+          value: '5432'
+        - name: POSTGRESQL_SHARED_PRELOAD_LIBRARIES
+          value: pgaudit
+        - name: POSTGRESQL_VOLUME_DIR
+          value: /bitnami/postgresql
+        - name: POSTGRESQL_MAX_CONNECTIONS
+          value: '10'
+        - name: POSTGRESQL_ALLOW_REMOTE_CONNECTIONS
+          value: 'false'
+        - name: POSTGRESQL_REPLICATION_USE_PASSFILE
+          value: 'false'
+        command:
+          - /bin/bash
+          - -c
+          - -e
+          - |
+            if [[ -f "${PGDATA}/postmaster.pid" ]] && [[ -f "${PGDATA}/PG_VERSION" ]] && [[ "$(cat ${PGDATA}/PG_VERSION)" -eq "$(/opt/bitnami/postgresql/bin/postgres -V | grep -oP '\d+(?=\.)')" ]]; then
+              echo "** Attempting to recover from improper shutdown **"
+              # Load libraries
+              . /opt/bitnami/scripts/libpostgresql.sh
+              . /opt/bitnami/scripts/libos.sh
+              # Load PostgreSQL environment variables
+              . /opt/bitnami/scripts/postgresql-env.sh
+              # Enable the nss_wrapper settings
+              postgresql_enable_nss_wrapper
+
+              # Start and stop postgres to recover from improper shutdown e.g backup while postgres running
+              postgresql_clean_from_restart
+              postgresql_start_bg
+              postgresql_stop
+            fi
+
+            echo "** Mounting old PostgreSQL files **"
+            rm -rf /oldpostgresql/*
+            cp -r /opt/bitnami/postgresql/bin /oldpostgresql/oldbin
+            cp -r /opt/bitnami/postgresql/conf /oldpostgresql/oldconf
+            echo "** Mount complete **"
+{{- if .Values.postgresql.resources }}
+        resources: {{- toYaml .Values.postgresql.resources | nindent 10 }}
+{{- end }}
+{{- template "testhub.container.security-context" (mergeOverwrite .Values.containerSecurityContext (dict "readOnlyRootFilesystem" false) ) }}
+      - name: migrate
+        image: '{{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.postgresql.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.postgresql.image .Values.imageRepoRepl }}'
+        volumeMounts:
+          - mountPath: /oldpostgresql
+            name: old-postgresql
+          - mountPath: /bitnami/postgresql
+            name: data
+          - mountPath: /dev/shm
+            name: dshm
+          - mountPath: /opt/bitnami/postgresql/conf/conf.d
+            name: postgresql-config
+        env:
+        - name: BITNAMI_DEBUG
+          value: 'false'
+        - name: PGDATA
+          value: /bitnami/postgresql/data
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgresql-password
+              name: '{{ .Release.Name }}-postgresql'
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRESQL_CLIENT_MIN_MESSAGES
+          value: error
+        - name: POSTGRESQL_ENABLE_LDAP
+          value: 'no'
+        - name: POSTGRESQL_ENABLE_TLS
+          value: 'no'
+        - name: POSTGRESQL_LOG_CONNECTIONS
+          value: 'false'
+        - name: POSTGRESQL_LOG_DISCONNECTIONS
+          value: 'false'
+        - name: POSTGRESQL_LOG_HOSTNAME
+          value: 'false'
+        - name: POSTGRESQL_PGAUDIT_LOG_CATALOG
+          value: 'off'
+        - name: POSTGRESQL_PORT_NUMBER
+          value: '5432'
+        - name: POSTGRESQL_SHARED_PRELOAD_LIBRARIES
+          value: pgaudit
+        - name: POSTGRESQL_VOLUME_DIR
+          value: /bitnami/postgresql
+        - name: POSTGRESQL_MAX_CONNECTIONS
+          value: '10'
+        - name: POSTGRESQL_ALLOW_REMOTE_CONNECTIONS
+          value: 'false'
+        - name: POSTGRESQL_REPLICATION_USE_PASSFILE
+          value: 'false'
+        command:
+          - /bin/bash
+          - -c
+          - -e
+          - |
+              restore_old_data () {
+                echo "Restoring old PostgreSQL data"
+                rm -rf ${PGDATA}
+                if [[ -f "${POSTGRESQL_VOLUME_DIR}/olddata/global/pg_control.old" ]]; then
+                  # Remove old suffix since since something went wrong on previous run
+                  mv ${POSTGRESQL_VOLUME_DIR}/olddata/global/pg_control.old ${POSTGRESQL_VOLUME_DIR}/olddata/global/pg_control
+                fi
+                mv ${POSTGRESQL_VOLUME_DIR}/olddata ${PGDATA}
+              }
+
+              if [[ -d "${POSTGRESQL_VOLUME_DIR}/olddata" ]]; then
+                # Recover old data since something went wrong on previous run
+                restore_old_data
+              fi
+
+              if [[ -f "${PGDATA}/PG_VERSION" ]] && [[ "$(cat ${PGDATA}/PG_VERSION)" -lt "$(/opt/bitnami/postgresql/bin/postgres -V | grep -oP '\d+(?=\.)')" ]]; then
+                # Load libraries
+                . /opt/bitnami/scripts/libpostgresql.sh
+                . /opt/bitnami/scripts/libos.sh
+                # Load PostgreSQL environment variables
+                . /opt/bitnami/scripts/postgresql-env.sh
+                # Enable the nss_wrapper settings
+                postgresql_enable_nss_wrapper
+
+                mv ${PGDATA} ${POSTGRESQL_VOLUME_DIR}/olddata
+                chmod 00700 ${POSTGRESQL_VOLUME_DIR}/olddata
+                cp -r /oldpostgresql/oldconf/. ${POSTGRESQL_VOLUME_DIR}/olddata
+                mkdir ${PGDATA}
+                chmod 00700 ${PGDATA}
+
+                echo "** Starting PostgreSQL setup **"
+                /opt/bitnami/scripts/postgresql/setup.sh
+                echo "** PostgreSQL setup finished! **"
+
+                cd $POSTGRESQL_TMP_DIR
+                cp -r /oldpostgresql/oldconf/. ${PGDATA}
+                echo "** Starting PostgreSQL upgrade **"
+                if pg_upgrade --link --username=$POSTGRES_USER --old-bindir=/oldpostgresql/oldbin --new-bindir=/opt/bitnami/postgresql/bin --old-datadir=${POSTGRESQL_VOLUME_DIR}/olddata --new-datadir=/bitnami/postgresql/data ; then
+                  echo "Running delete_old_cluster.sh"
+                  ./delete_old_cluster.sh || true
+                  # Delete config files used for upgrade to allow generation on main container
+                  rm -f ${PGDATA}/pg_hba.conf
+                  rm -f ${PGDATA}/postgresql.conf
+                else
+                  echo "** pg_upgrade log content **"
+                  cat ${PGDATA}/pg_upgrade_output.d/*/log/* || true
+                  mkdir ${POSTGRESQL_VOLUME_DIR}/pg_upgrade_logs || true
+                  cp -r ${PGDATA}/pg_upgrade_output.d/*/log/* ${POSTGRESQL_VOLUME_DIR}/pg_upgrade_logs || true
+                  restore_old_data
+                fi
+              fi
+              # Clear ephemeral storage
+              echo "Deleting old PostgreSQL files"
+              rm -rf /oldpostgresql/*
+              echo "** Migration complete **"
+{{- if .Values.postgresql.resources }}
+        resources: {{- toYaml .Values.postgresql.resources | nindent 10 }}
+{{- end }}
+{{- template "testhub.container.security-context" (mergeOverwrite .Values.containerSecurityContext (dict "readOnlyRootFilesystem" false) ) }}
+{{- end }}
+      containers:
+      - name: main
+        env:
+        - name: BITNAMI_DEBUG
+          value: 'false'
+        - name: PGDATA
+          value: /bitnami/postgresql/data
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgresql-password
+              name: '{{ .Release.Name }}-postgresql'
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRESQL_CLIENT_MIN_MESSAGES
+          value: error
+        - name: POSTGRESQL_ENABLE_LDAP
+          value: 'no'
+        - name: POSTGRESQL_ENABLE_TLS
+          value: 'no'
+        - name: POSTGRESQL_LOG_CONNECTIONS
+          value: 'false'
+        - name: POSTGRESQL_LOG_DISCONNECTIONS
+          value: 'false'
+        - name: POSTGRESQL_LOG_HOSTNAME
+          value: 'false'
+        - name: POSTGRESQL_PGAUDIT_LOG_CATALOG
+          value: 'off'
+        - name: POSTGRESQL_PORT_NUMBER
+          value: '5432'
+        - name: POSTGRESQL_SHARED_PRELOAD_LIBRARIES
+{{- if .Values.postgresql.debugEnabled }}
+          value: 'pgaudit,pg_stat_statements'
+{{- else }}
+          value: pgaudit
+{{- end }}
+        - name: POSTGRESQL_VOLUME_DIR
+          value: /bitnami/postgresql
+        - name: POSTGRESQL_MAX_CONNECTIONS
+{{- $totalConnections := 1 }}
+{{- range $key, $value := .Values.postgresql.dbs }}
+{{- if hasKey $value "connections" }}
+{{- $totalConnections = add $totalConnections $value.connections }}
+{{- end }}
+{{- end }}
+          value: '{{ $totalConnections }}'
+        - name: POSTGRESQL_REPLICATION_USE_PASSFILE
+          value: 'false'
+        image: '{{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.postgresql.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.postgresql.image .Values.imageRepoRepl }}'
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - exec pg_isready -U "postgres" -h 127.0.0.1 -p 5432
+          failureThreshold: 6
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        ports:
+        - name: tcp-postgresql
+          containerPort: 5432
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - -e
+            - |
+              exec pg_isready -U "postgres" -h 127.0.0.1 -p 5432
+              [ -f /opt/bitnami/postgresql/tmp/.initialized ] || [ -f /bitnami/postgresql/.initialized ]
+          failureThreshold: 6
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+{{- if .Values.postgresql.resources }}
+        resources: {{- toYaml .Values.postgresql.resources | nindent 10 }}
+{{- end }}
+{{- template "testhub.container.security-context" (mergeOverwrite .Values.containerSecurityContext (dict "readOnlyRootFilesystem" false) ) }}
+        volumeMounts:
+        - mountPath: /bitnami/postgresql
+          name: data
+        - mountPath: /dev/shm
+          name: dshm
+        - mountPath: /opt/bitnami/postgresql/conf/conf.d
+          name: postgresql-config
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+{{- if include "testhub.ibmImagePullSecret" . }}
+      imagePullSecrets:
+      - name: '{{ include "testhub.ibmImagePullSecret" . }}'
+{{- end }}
+{{- template "testhub.pod.security-context" $ }}
+      serviceAccountName: '{{ .Release.Name }}-postgresql'
+      volumes:
+      - configMap:
+          name: '{{ .Release.Name }}-postgresql'
+        name: postgresql-config
+      - emptyDir:
+          medium: Memory
+          sizeLimit: 1Gi
+        name: dshm
+{{- if .Values.postgresql.migrate.enabled}}
+      - emptyDir:
+        name: old-postgresql
+{{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+{{- if .Values.global.persistence.rwoStorageClass }}
+      storageClassName: '{{ .Values.global.persistence.rwoStorageClass }}'
+{{- end }}
+      resources:
+        requests:
+          storage: 26Gi

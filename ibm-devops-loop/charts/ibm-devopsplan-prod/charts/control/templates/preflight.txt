@@ -1,0 +1,53 @@
+{{/*
+ Licensed Materials - Property of HCL
+ (C) Copyright HCL Technologies Ltd. 2024, 2025.  All Rights Reserved.
+ Note to U.S. Government Users Restricted Rights:
+ Use, duplication or disclosure restricted by GSA ADP Schedule Contract
+*/}}
+{{- if (or (not .Values.ingress) (not .Values.ingress.mapping) (not (or .Values.ingress.mapping.prefix .Values.ingress.path))) -}}
+    {{- fail "Missing ingress.mapping.prefix/path value" -}}
+{{- end -}}
+{{- if not .Values.global.domain -}}
+  {{- fail "Missing global domain" -}}
+{{- end -}}
+{{- if not .Values.global.platform -}}
+  {{- fail "Missing required global.platform setting" -}}
+{{- end -}}
+
+{{- if (and .Values.global.platform.oidc .Values.global.platform.enabled ) -}}
+{{- if not .Values.global.platform.oidc.issuerPath -}}
+  {{- fail "Missing required global.platform.oidc.issuerPath" -}}
+{{- end -}}
+{{- if not .Values.platform.oidc.clientId -}}
+  {{- fail "Missing required platform.oidc.clientId" -}}
+{{- end -}}
+{{- if not .Values.platform.oidc.clientSecret -}}
+  {{- fail "Missing required platform.oidc.clientSecret" -}}
+{{- end -}}
+{{- end -}}
+
+{{- if (or .Values.global.platform.enabled .Values.global.platform.smtp) -}}
+{{/* ensure all or none of sender/host/port are set */}}
+{{- if (or .Values.global.platform.smtp.sender
+           .Values.global.platform.smtp.host
+           .Values.global.platform.smtp.port) -}}
+{{- if not .Values.global.platform.smtp.sender -}}
+  {{- fail "Missing required global.platform.smtp.sender" -}}
+{{- end -}}
+{{- if not .Values.global.platform.smtp.host -}}
+  {{- fail "Missing required global.platform.smtp.host" -}}
+{{- end -}}
+{{- if not .Values.global.platform.smtp.port -}}
+  {{- fail "Missing required global.platform.smtp.port" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- if (and
+        (eq .Values.ingress.type "mapping")
+        (not .Values.global.plan.enabled)
+        (not .Values.global.platform.enabled)
+        .Values.ingress.host.enabled
+        (not .Values.global.ibmCertSecretName) ) }}
+  {{- fail "Missing required global.ibmCertSecretName for mapping with ingress host enabled" -}}
+{{- end -}}

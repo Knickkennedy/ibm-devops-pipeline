@@ -1,0 +1,11 @@
+apiVersion: getambassador.io/v3alpha1
+kind: Mapping
+metadata:
+  name: keycloaksrv-mapping
+  namespace: default
+spec:
+  prefix: /
+  service: my-keycloak-http.default.svc.cluster.local
+  host: keycloak.local
+  timeout_ms: 30000
+

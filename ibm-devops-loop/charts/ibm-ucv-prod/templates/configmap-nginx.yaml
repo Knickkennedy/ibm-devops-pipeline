@@ -1,0 +1,382 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: nginx-conf
+  selfLink: /api/v1/namespaces/default/configmaps/nginx-conf
+  labels:
+    {{- include "ucv.labels" . | nindent 4 }}
+data:
+  nginx.conf: |
+    #user  velocity;
+    worker_processes  1;
+
+    error_log /dev/stdout info;
+
+    pid        /opt/bitnami/nginx/pid/nginx.pid;
+
+    events {
+        worker_connections  1024;
+    }
+
+    http {
+        access_log /dev/stdout;
+
+        server_tokens off;
+
+        limit_conn_zone     $binary_remote_addr zone=limitperip:10m;
+        limit_req_zone      $binary_remote_addr zone=perip:10m rate=2r/s;
+
+        upstream release-events-ui {
+            server release-events-ui:3010;
+        }
+        upstream application-api {
+            server application-api:3499;
+        }
+        upstream continuous-release-consumer {
+            server continuous-release-consumer:3411;
+        }
+        upstream security-api {
+            server security-api:3911;
+        }
+        upstream release-events-api {
+            server release-events-api:8080;
+        }
+        upstream continuous-release-ui {
+            server continuous-release-ui:3000;
+        }
+        upstream reporting-consumer {
+            server reporting-consumer:6004;
+        }
+        upstream multi-app-pipeline-api {
+            server multi-app-pipeline-api:9090;
+        }
+        upstream rabbit {
+            server velocity-rabbitmq:15672;
+        }
+
+        map $http_upgrade $connection_upgrade {
+            default upgrade;
+            '' close;
+        }
+
+        server {
+            return 404;
+        }
+
+        server {
+            listen       8080;
+            server_name  velocity-router;
+
+            # Only allow requests from trusted hosts and /ready and /alive probes
+            set $allowHost 0;
+            if ($host = {{ include "ucv.domain" . }}) {
+                set $allowHost 1;
+            }
+            if ($uri = '/ready') {
+                set $allowHost 1;
+            }
+            if ($uri = '/alive') {
+                set $allowHost 1;
+            }
+            if ($allowHost != 1) {
+                return 444; # No response to untrusted hosts
+            }
+
+            client_max_body_size 20m;
+            underscores_in_headers on;
+
+             # OCSP stapling
+            ssl_stapling on;
+            ssl_stapling_verify on;
+
+            add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+            add_header X-Frame-Options "SAMEORIGIN" always;
+            add_header X-XSS-Protection "1; mode=block" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header Referrer-Policy "no-referrer";
+            {{ if ((.Values.global).platform).enabled }}
+            add_header Content-Security-Policy "Content-Security-Policy: frame-ancestors 'self' ; default-src 'self' ; script-src 'self' 'unsafe-eval' ; style-src 'self' 'unsafe-inline' https://unpkg.com ; connect-src 'self' https://cdn.plot.ly  https://unpkg.com";
+            {{ else }}
+            add_header Content-Security-Policy "Content-Security-Policy: default-src 'self' ; script-src 'self' 'unsafe-eval' ; style-src 'self' 'unsafe-inline' https://unpkg.com ; connect-src 'self' https://cdn.plot.ly  https://unpkg.com";
+            {{ end }}
+
+            set $downstream_x_proxy_from https://$host$request_uri;
+            if ($http_x_proxy_from) {
+                set $downstream_x_proxy_from $http_x_proxy_from;
+            }
+            proxy_set_header X-Proxy-From $downstream_x_proxy_from;
+
+            proxy_set_header        Host $host;
+            proxy_set_header        X-Real-IP $remote_addr;
+            proxy_set_header        X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header        X-Forwarded-Proto https;
+
+            proxy_http_version      1.1;
+            proxy_set_header        Upgrade $http_upgrade;
+            proxy_set_header        Connection $connection_upgrade;
+
+            proxy_pass_request_headers on;
+
+            # hide headers
+            proxy_hide_header X-Powered-By;
+
+            # Resolves VELOCITY-7952; HTTP 5XX errors display a generic page instead of a stack trace
+            proxy_intercept_errors on;
+            error_page 500 502 503 504 /50x.html;
+            location /50x.html {
+                internal;
+            }
+
+            # https://stackoverflow.com/questions/49742269/rabbitmq-management-over-https-and-nginx
+            location /rabbit {
+                return 301 https://$host:{{ .Values.url.port | toString }}/rabbit/;
+            }
+            location ~* /rabbit/api/ {
+                rewrite ^ $request_uri;
+                rewrite ^/rabbit/api/(.+) /api/$1 break;
+                rewrite ^/rabbit/api/ /api/index.html break;
+                proxy_pass http://rabbit$uri;
+                proxy_buffering                    off;
+                proxy_set_header Host              $http_host;
+                proxy_set_header X-Real-IP         $remote_addr;
+                proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+            location ~* /rabbit/(.*) {
+                rewrite ^/rabbit/(.*)$ /$1 break;
+                proxy_pass http://rabbit;
+                proxy_buffering                    off;
+                proxy_set_header Host              $http_host;
+                proxy_set_header X-Real-IP         $remote_addr;
+                proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+            }
+
+            location ~ /\. {
+                deny all;
+                return 404;
+            }
+
+            location /ready {
+                return 200 'ready';
+                add_header Content-Type text/plain;
+            }
+
+            location /alive {
+                return 200 'alive';
+                add_header Content-Type text/plain;
+            }
+
+            # Static files in continuous-release-ui
+            location ~* deploymentPlans/.*\.(?:jpg|jpeg|gif|png|ico|cur|gz|svg|svgz|mp4|mp3|ogg|ogv|webm|htc|woff2|woff)$ {
+                access_log off;
+                # Strip out old cache heading that was setting max-age to 0
+                proxy_hide_header       Cache-Control;
+                 # must be set again because it was overriden
+                proxy_hide_header X-Powered-By;
+                # One month in seconds
+                add_header Cache-Control "public, max-age=2629746";
+                # must be set again because it was overriden
+                add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+                add_header X-Frame-Options "SAMEORIGIN" always;
+                add_header X-XSS-Protection "1; mode=block" always;
+                add_header X-Content-Type-Options "nosniff" always;
+                {{ if ((.Values.global).platform).enabled }}
+                add_header Content-Security-Policy "Content-Security-Policy: frame-ancestors 'self' ; script-src 'self' 'unsafe-eval' 'unsafe-inline' 'strict-dynamic' ; style-src 'self' 'unsafe-inline'";
+                {{ else }}
+                add_header Content-Security-Policy "Content-Security-Policy: script-src 'self' 'unsafe-eval' 'unsafe-inline' 'strict-dynamic' ; style-src 'self' 'unsafe-inline'";
+                {{ end }}
+                add_header Referrer-Policy "no-referrer";
+                {{- if ne .Values.ingress.path "/" }}
+                rewrite /deploymentPlans/(.*) /{{ .Values.ingress.path | trimPrefix "/" | trimSuffix "/" }}/deploymentPlans/$1  break;
+                {{- end }}
+                proxy_pass          http://continuous-release-ui;
+            }
+
+            # Js and css files for continuous-release-ui
+            location ~* deploymentPlans/.*\.(?:js|css)$ {
+                {{- if ne .Values.ingress.path "/" }}
+                rewrite /deploymentPlans/(.*) /{{ .Values.ingress.path | trimPrefix "/" | trimSuffix "/" }}/deploymentPlans/$1  break;
+                {{- end }}
+                proxy_pass          http://continuous-release-ui;
+                proxy_hide_header       Cache-Control;
+                # must be set again because it was overriden
+                add_header Cache-Control "public, max-age=120";
+                add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+                add_header X-Frame-Options "SAMEORIGIN" always;
+                add_header X-XSS-Protection "1; mode=block" always;
+                add_header X-Content-Type-Options "nosniff" always;
+                {{ if ((.Values.global).platform).enabled }}
+                add_header Content-Security-Policy "frame-ancestors 'self' ; default-src 'self' ; script-src 'self' 'unsafe-eval' 'unsafe-inline' ; style-src 'self' 'unsafe-inline'";
+                {{ else }}
+                add_header Content-Security-Policy "default-src 'self' ; script-src 'self' 'unsafe-eval' 'unsafe-inline' ; style-src 'self' 'unsafe-inline'";
+                {{ end }}
+                add_header Referrer-Policy "no-referrer";
+            }
+
+            # Static files in release-events-ui
+            location ~* ^(?!.*graphiql).*\.(?:jpg|jpeg|gif|png|ico|cur|gz|svg|svgz|mp4|mp3|ogg|ogv|webm|htc|woff2|woff|css|js)$ {
+                access_log off;
+                # Strip out old cache heading that was setting max-age to 0
+                proxy_hide_header       Cache-Control;
+                # must be set again because it was overriden
+                proxy_hide_header X-Powered-By;
+                # One month in seconds
+                add_header Cache-Control "public, max-age=2629746";
+                # must be set again because it was overriden
+                add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+                add_header X-Frame-Options "SAMEORIGIN" always;
+                add_header X-XSS-Protection "1; mode=block" always;
+                add_header X-Content-Type-Options "nosniff" always;
+                {{ if ((.Values.global).platform).enabled }}
+                add_header Content-Security-Policy "Content-Security-Policy: frame-ancestors 'self' ; script-src 'self' 'unsafe-eval' 'unsafe-inline' 'strict-dynamic' ; style-src 'self' 'unsafe-inline'";
+                {{ else }}
+                add_header Content-Security-Policy "Content-Security-Policy: script-src 'self' 'unsafe-eval' 'unsafe-inline' 'strict-dynamic' ; style-src 'self' 'unsafe-inline'";
+                {{ end }}
+                add_header Referrer-Policy "no-referrer";
+                proxy_pass          http://release-events-ui;
+            }
+
+            location ~* ^((?!release-events-api).)*\/graphql(\/?)$ {
+                deny all;
+                return 403;
+            }
+
+            location / {
+                proxy_pass          http://release-events-ui;
+            }
+
+            location  /release-events-api/ {
+                add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+                add_header X-Frame-Options "SAMEORIGIN" always;
+                add_header X-XSS-Protection "1; mode=block" always;
+                add_header X-Content-Type-Options "nosniff" always;
+                {{ if ((.Values.global).platform).enabled }}
+                add_header Content-Security-Policy "Content-Security-Policy: frame-ancestors 'self' ; default-src 'self' ; script-src 'self' 'unsafe-eval' 'unsafe-inline' ; style-src 'self' 'unsafe-inline' https://unpkg.com ; connect-src 'self' https://cdn.plot.ly  https://unpkg.com";
+                {{ else }}
+                add_header Content-Security-Policy "Content-Security-Policy: default-src 'self' ; script-src 'self' 'unsafe-eval' 'unsafe-inline' ; style-src 'self' 'unsafe-inline' https://unpkg.com ; connect-src 'self' https://cdn.plot.ly  https://unpkg.com";
+                {{ end }}                add_header Referrer-Policy "no-referrer";
+                add_header Cache-Control "no-cache";
+                proxy_pass         http://release-events-api/;
+            }
+
+            location  /release-events-api/graphql {
+                proxy_hide_header Cache-Control;
+                add_header Cache-Control "no-store, max-age=0";
+                proxy_hide_header X-Powered-By;
+                add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+                add_header X-Frame-Options "SAMEORIGIN" always;
+                add_header X-XSS-Protection "1; mode=block" always;
+                {{ if ((.Values.global).platform).enabled }}
+                add_header Content-Security-Policy "frame-ancestors 'self' ; default-src 'self' ; script-src 'self' 'unsafe-eval' 'unsafe-inline' ; style-src 'self' 'unsafe-inline'";
+                {{ else }}
+                add_header Content-Security-Policy "default-src 'self' ; script-src 'self' 'unsafe-eval' 'unsafe-inline' ; style-src 'self' 'unsafe-inline'";
+                {{ end }}
+                add_header X-Content-Type-Options "nosniff" always;
+                proxy_pass         http://release-events-api/graphql;
+            }
+
+            location  /api/ {
+                proxy_hide_header Cache-Control;
+                add_header Cache-Control "no-store, max-age=0";
+                proxy_pass         http://release-events-api/api/;
+                keepalive_timeout   60;
+                send_timeout 60;
+            }
+
+            location ^~ /graphql {
+                proxy_hide_header Cache-Control;
+                add_header Cache-Control "no-store, max-age=0";
+                proxy_hide_header X-Powered-By;
+                add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+                add_header X-Frame-Options "SAMEORIGIN" always;
+                add_header X-XSS-Protection "1; mode=block" always;
+                {{ if ((.Values.global).platform).enabled }}
+                add_header Content-Security-Policy "frame-ancestors 'self' ; default-src 'self' ; script-src 'self' 'unsafe-eval' 'unsafe-inline' ; style-src 'self' 'unsafe-inline'";
+                {{ else }}
+                add_header Content-Security-Policy "default-src 'self' ; script-src 'self' 'unsafe-eval' 'unsafe-inline' ; style-src 'self' 'unsafe-inline'";
+                {{ end }}
+                add_header X-Content-Type-Options "nosniff" always;
+                proxy_pass         http://release-events-api/graphql;
+            }
+
+            location /graphiql {
+                {{- if ne .Values.ingress.path "/" }}
+                return 301 https://$host:{{ .Values.url.port | toString }}/{{ .Values.ingress.path | trimPrefix "/" | trimSuffix "/" }}/release-events-api/graphiql/;
+                {{- else }}
+                return 301 https://$host:{{ .Values.url.port | toString }}/release-events-api/graphiql/;
+                {{- end }}
+            }
+
+            location  /application-api/ {
+                proxy_pass         http://application-api/;
+            }
+
+            location  /continuous-release-consumer/ {
+                proxy_pass         http://continuous-release-consumer/;
+            }
+
+            location  /reporting-sync-api/api/v1/jenkins/ {
+                proxy_hide_header Cache-Control;
+                add_header Cache-Control "no-store, max-age=0";
+                proxy_pass_request_headers on;
+                proxy_pass         http://reporting-consumer/jenkins/;
+            }
+
+            location  /security-api/ {
+                proxy_pass         http://security-api/;
+            }
+
+            location /deploymentPlans {
+                access_log off;
+                # Strip out old cache heading that was setting max-age to 0
+                proxy_hide_header       Cache-Control;
+                # must be set again because it was overriden
+                proxy_hide_header X-Powered-By;
+                # One month in seconds
+                add_header Cache-Control "public, max-age=2629746";
+                # must be set again because it was overriden
+                add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+                add_header X-Frame-Options "SAMEORIGIN" always;
+                add_header X-XSS-Protection "1; mode=block" always;
+                add_header X-Content-Type-Options "nosniff" always;
+                add_header Content-Security-Policy "default-src 'self' ; script-src 'self' 'unsafe-eval' 'unsafe-inline' ; style-src 'self' 'unsafe-inline'";
+                add_header Referrer-Policy "no-referrer";
+                {{- if eq .Values.ingress.path "/" }}
+                proxy_pass          http://continuous-release-ui;
+                {{- else }}
+                proxy_pass          http://continuous-release-ui/{{ .Values.ingress.path | trimPrefix "/" | trimSuffix "/" }}/deploymentPlans;
+                {{- end }}
+            }
+
+            location /reporting-consumer/qualityData/artifact/ {
+                deny               all;
+                return             403;
+            }
+
+            location  /reporting-consumer/ {
+                proxy_pass         http://reporting-consumer/;
+            }
+
+            # Large files upload and download for ML Models
+            location  /reporting-consumer/mlModel/ {
+                proxy_pass         http://reporting-consumer/mlModel/;
+                client_max_body_size 1024m;
+            }
+
+            location /multi-app-pipeline-api/ {
+                proxy_pass          http://multi-app-pipeline-api/;
+            }
+
+            location /insights {
+                add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+                add_header X-Frame-Options "SAMEORIGIN" always;
+                add_header X-XSS-Protection "1; mode=block" always;
+                add_header X-Content-Type-Options "nosniff" always;
+                add_header Content-Security-Policy "default-src 'self' ; script-src 'self' 'unsafe-eval' 'unsafe-inline' ; style-src 'self' 'unsafe-inline' https://unpkg.com ; connect-src 'self' https://cdn.plot.ly  https://unpkg.com";
+                add_header Referrer-Policy "no-referrer";
+                add_header Cache-Control "no-cache";
+                proxy_pass          http://release-events-ui;
+            }
+        }
+    }

@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: continuous-release-consumer
+  labels:
+    {{- include "ucv.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- $vars := merge (dict) . -}}
+      {{- $_ := set $vars "ucvService" "continuous-release-consumer" -}}
+      {{- include "ucv.selector" $vars | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- $vars := merge (dict) . -}}
+        {{- $_ := set $vars "ucvService" "continuous-release-consumer" -}}
+        {{- include "ucv.specTemplateLabels" $vars | nindent 8 }}
+      annotations:
+        {{- include "ucv.productAnnotations" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      imagePullSecrets:
+        {{- include "ucv.imagePullSecrets" . | nindent 8 }}
+      affinity:
+        {{- $vars := merge (dict) . -}}
+        {{- $_ := set $vars "ucvWorkloadClass" "background" -}}
+        {{- include "ucv.nodeAffinity" $vars | nindent 8 }}
+      containers:
+        - name: continuous-release-consumer
+          image:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvImageRegistry" .Values.imageRegistry.velocityRegistry -}}
+            {{- $_ := set $vars "ucvImageRegistryPath" .Values.imageRegistry.velocityPath -}}
+            {{- $_ := set $vars "ucvImageName" "continuous-release-consumer" -}}
+            {{- $_ := set $vars "ucvImageTag" "5.1.6.6" -}}
+            {{- include "ucv.image" $vars | nindent 12 }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3411
+          env:
+            - name: NODE_OPTIONS
+              {{- $vars := merge (dict) . -}}
+              {{- $_ := set $vars "ucvService" "continuous-release-consumer" -}}
+              {{- include "ucv.maxOldSpaceSize" $vars | nindent 14 }}
+            - name: NODE_ENV
+              value: onprem
+            - name: PORT
+              value: '3411'
+            - name: LOG_LEVEL
+              value: {{ .Values.loglevel }}
+            - name: OPEN_TELEMETRY
+              value: {{ .Values.openTelemetryEnabled }}
+            - name: OPEN_TELEMETRY_LOG_LEVEL
+              value: {{ .Values.openTelemetryLogLevel }}
+            - name: OPEN_TELEMETRY_COLLECTOR
+              value: {{ index .Values "opentelemetry-collector" "fullnameOverride" }}
+            - name: API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: apiToken
+            - name: CIPHER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: cipherToken
+            - name: HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: hmacKey
+            - name: RABBITMQ_HOST
+              value: velocity-rabbitmq
+            - name: RABBITMQ_PORT
+              value: '5672'
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.rabbit }}
+                  key: user
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.rabbit }}
+                  key: password
+          resources:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "continuous-release-consumer" -}}
+            {{- include "ucv.resources" $vars | nindent 12 }}
+          securityContext:
+            {{- include "ucv.securityContext" . | nindent 12 }}
+          livenessProbe:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "continuous-release-consumer" -}}
+            {{- $_ := set $vars "ucvLivenessPort" 3411 -}}
+            {{- include "ucv.livenessProbe" $vars | nindent 12 }}
+          readinessProbe:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "continuous-release-consumer" -}}
+            {{- $_ := set $vars "ucvReadinessPort" 3411 -}}
+            {{- include "ucv.readinessProbe" $vars | nindent 12 }}

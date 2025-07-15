@@ -1,0 +1,25 @@
+{{- if (eq .Values.ingress.type "mapping") }}
+{{- if .Values.ingress.cert.selfSigned }}
+{{- if .Values.ingress.cert.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: cert
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-cert'
+roleRef:
+  kind: Role
+  apiGroup: rbac.authorization.k8s.io
+  name: '{{ .Release.Name }}-cert'
+subjects:
+- kind: ServiceAccount
+  name: '{{ .Release.Name }}-cert'
+  namespace: '{{ .Release.Namespace }}'
+{{- end }}
+{{- end }}
+{{- end }}

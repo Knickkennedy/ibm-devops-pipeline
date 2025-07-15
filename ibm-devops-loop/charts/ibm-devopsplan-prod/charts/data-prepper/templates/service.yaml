@@ -1,0 +1,19 @@
+{{- if .Values.global.platform.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "ccm.subchart.fullname" . }}-data-prepper
+  labels:
+    {{- include "data-prepper.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  {{- range .Values.ports }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .port }}
+      protocol: TCP
+  {{- end }}
+  selector:
+    {{- include "data-prepper.selectorLabels" . | nindent 4 }}
+{{- end -}}

@@ -1,0 +1,22 @@
+{{- if (.Capabilities.APIVersions.Has "getambassador.io/v2") }}
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    {{- include "devops-platform.labels" (dict "componentName" "code-mapping" "context" .) | nindent 4 }}
+  name: {{ include "devops-platform.componentFullname" (dict "componentName" "code" "context" .) }}
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+  host: {{ .Values.global.domain }}
+  prefix: {{ .Values.ingress.path }}
+  rewrite: ''
+  allow_upgrade:
+  - websocket
+  service: http://{{ include "devops-platform.componentFullname" (dict "componentName" "code" "context" .) }}:{{ .Values.clientservice.port }}
+  timeout_ms: 0
+  idle_timeout_ms: 0
+  connect_timeout_ms: 480000
+{{- end }}

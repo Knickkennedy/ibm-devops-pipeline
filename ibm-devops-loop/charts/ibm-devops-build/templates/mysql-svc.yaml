@@ -1,0 +1,16 @@
+{{- if not .Values.deploy.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.mysql.service.name }}
+  labels:
+{{ include "ibm-devops-build.labels" . | indent 4 }}
+spec:
+  selector:
+    app: {{ .Values.mysql.service.name }}
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+  ports:
+    - protocol: TCP
+      port: {{ .Values.mysql.service.port }}
+      targetPort: {{ .Values.mysql.service.port }}
+{{- end }}

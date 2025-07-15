@@ -1,0 +1,53 @@
+{{- if .Values.database.fetchDriver }}
+{{- if not .Values.extLibVolume.configMapName }}
+{{- include "sch.config.init" (list . "ibm-ucd-prod.sch.chart.config.values") -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-extlibvolume-jdbc
+  labels:
+{{ include "sch.metadata.labels.standard" (list . "cm") | indent 4 }}
+data:
+  script.sh: |
+    #!/bin/bash
+
+    echo "********* running script to copy JDBC driver files"
+
+    # If driverVersion key does not exist or is null, then set the VERSION to the latest available jdbc driver version
+    # available for the specific database type.
+    {{- if not .Values.database.driverVersion }}
+    {{- if (eq .Values.database.type "mysql") }}
+    VERSION=9.0.0
+    {{- else if (eq .Values.database.type "sqlserver") }}
+    VERSION=12.8.1.jre11
+    {{- else if (eq .Values.database.type "oracle") }}
+    VERSION=23.5.0.24.07
+    {{- else if (eq .Values.database.type "db2") }}
+    VERSION=11.5.9.0
+    {{- end }}
+    {{- else }}
+    VERSION={{ .Values.database.driverVersion }}
+    {{- end }}
+
+    {{- if (eq .Values.database.type "mysql") }}
+    CONNECTOR=mysql-connector-j-$VERSION.jar
+    DOWNLOAD_URL=https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/$VERSION/$CONNECTOR
+    {{- else if (eq .Values.database.type "sqlserver") }}
+    CONNECTOR=mssql-jdbc-$VERSION.jar
+    DOWNLOAD_URL=https://repo1.maven.org/maven2/com/microsoft/sqlserver/mssql-jdbc/$VERSION/$CONNECTOR
+    {{- else if (eq .Values.database.type "oracle") }}
+    CONNECTOR=ojdbc11-$VERSION.jar
+    DOWNLOAD_URL=https://repo1.maven.org/maven2/com/oracle/database/jdbc/ojdbc11/$VERSION/$CONNECTOR
+    {{- else if (eq .Values.database.type "db2") }}
+    CONNECTOR=jcc-$VERSION.jar
+    DOWNLOAD_URL=https://repo1.maven.org/maven2/com/ibm/db2/jcc/$VERSION/$CONNECTOR
+    {{- end }}
+
+    if [ ! -f "$UCD_HOME/ext_lib/$CONNECTOR" ]; then
+      wget -U "My User Agent" $DOWNLOAD_URL
+      mv $CONNECTOR "$UCD_HOME/ext_lib/"
+    fi
+
+    ls -la "$UCD_HOME/ext_lib"
+{{- end }}
+{{- end }}

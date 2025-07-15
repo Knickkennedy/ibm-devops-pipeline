@@ -1,0 +1,10 @@
+ingress:
+  type: mapping
+keycloaksrv:
+  ingress:
+    enabled: true
+    type: mapping
+    suffix: ""
+  proxy: edge
+  service:
+    type: ClusterIP

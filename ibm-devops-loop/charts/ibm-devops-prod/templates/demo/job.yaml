@@ -1,0 +1,133 @@
+{{- if include "testhub.demo.enabled" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: '30'
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: demo
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-demo'
+spec:
+  template:
+    metadata:
+      annotations:
+        productID: e3e180b0faae4301b54c5c9b37319e5c
+        productMetric: FLOATING_USER
+        productName: IBM Rational Test Automation Server Basic
+        productVersion: "11.0.5"
+        cloudpakName : IBM DevOps for IBM Cloud Paks
+        cloudpakId : dedb7a9445a44fb88c927c1658243cd1
+        cloudpakMetric : RESOURCE_UNIT
+        productCloudpakRatio : "1:1"
+        productChargedContainers : All
+      labels:
+        app.kubernetes.io/instance: '{{ .Release.Name }}'
+        app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+        app.kubernetes.io/name: demo
+        app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+        app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+        helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+      containers:
+      - name: main
+        command:
+        - bash
+        - -c
+        - |
+          APISERVER=https://kubernetes.default.svc
+          SERVICEACCOUNT=/var/run/secrets/kubernetes.io/serviceaccount
+          NAMESPACE=$(cat ${SERVICEACCOUNT}/namespace)
+          TOKEN=$(cat ${SERVICEACCOUNT}/token)
+          CACERT=${SERVICEACCOUNT}/ca.crt
+
+          ./wait.sh $KEYCLOAK_URL/realms/$REALM_NAME/
+
+          . admin-token.sh
+
+          USER_NAME_FIRST=demo
+          USER_NAME_LAST=user
+          USER_NAME=$USER_NAME_FIRST.$USER_NAME_LAST
+          USER_PASS="$DEMO_USER_PASSWORD"
+
+          . user-create.sh
+
+          . user-offline-token.sh
+          secret-patch() {
+            curl --cacert ${CACERT} -si -o /dev/null -X PATCH \
+            --header "Authorization: Bearer ${TOKEN}" \
+            --header 'Content-Type: application/json-patch+json' \
+            "${APISERVER}/api/v1/namespaces/${NAMESPACE}/secrets/$1" \
+            --data-binary @- <<EOF
+          [{"op":"replace","path":"/data/$2","value":"$(base64 -w0 <<< "$3")"}]
+          EOF
+          }
+
+          secret-patch '{{ .Release.Name }}-demo' user-token "$USER_TOKEN"
+
+          USER_NAME_FIRST=demo
+          USER_NAME_LAST=admin
+          USER_NAME=$USER_NAME_FIRST.$USER_NAME_LAST
+          USER_GROUPS='["Admins"]'
+          USER_PASS="$DEMO_ADMIN_PASSWORD"
+
+          . user-create.sh
+
+          . user-offline-token.sh
+          secret-patch '{{ .Release.Name }}-demo' admin-token "$USER_TOKEN"
+        env:
+{{- template "testhub.container.keycloak-init-sh-env" $ }}
+        - name: CLIENT_ID
+          value: testserver
+        - name: CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              key: oauth-client-secret
+              name: '{{ .Release.Name }}-core'
+        - name: DEMO_USER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: user-password
+              name: '{{ .Release.Name }}-demo'
+        - name: DEMO_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: admin-password
+              name: '{{ .Release.Name }}-demo'
+{{- template "testhub.container.keycloak-init-sh-trailer" $ }}
+{{- template "testhub.volumeMounts.kube-api-access" }}
+{{- if include "testhub.ibmImagePullSecret" . }}
+      imagePullSecrets:
+      - name: '{{ include "testhub.ibmImagePullSecret" . }}'
+{{- end }}
+      initContainers:
+{{- template "testhub.initContainers.core-isready" $ }}
+      restartPolicy: Never
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+{{- template "testhub.pod.security-context" $ }}
+      serviceAccountName: '{{ .Release.Name }}-demo'
+      volumes:
+      - name: ingress
+        secret:
+          optional: {{ ternary "false" "true" .Values.ingress.cert.selfSigned }}
+          secretName: '{{ ternary .Values.global.ibmCertSecretName "none" .Values.ingress.cert.selfSigned }}'
+{{- template "testhub.volumes.kube-api-access" }}
+{{- template "testhub.volumes.keycloak-init-sh" $ }}
+  ttlSecondsAfterFinished: 3600
+{{- end }}

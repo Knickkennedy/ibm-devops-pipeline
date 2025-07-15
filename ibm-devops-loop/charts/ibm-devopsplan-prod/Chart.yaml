@@ -1,0 +1,30 @@
+apiVersion: v2
+appVersion: 3.0.4
+dependencies:
+- condition: platform.dataPrepper.enabled
+  name: data-prepper
+  repository: ""
+  version: 0.1.0
+- condition: backupRestore.enabled
+  name: velero
+  repository: ""
+  version: 8.7.1
+- condition: backupRestore.enabled
+  name: minio
+  repository: ""
+  version: 16.0.1
+- condition: llama.enabled
+  name: llama
+  repository: ""
+  version: 1.16.0
+- condition: keycloaksrv.enabled
+  name: keycloaksrv
+  repository: ""
+  version: 24.5.1
+- condition: control.enabled
+  name: control
+  repository: https://us-artifactory1.nonprod.hclpnp.com/artifactory/hclsoftware-helm-dev
+  version: 1.0.2
+description: ibm-devopsplan Product
+name: ibm-devopsplan-prod
+version: 3.0.4

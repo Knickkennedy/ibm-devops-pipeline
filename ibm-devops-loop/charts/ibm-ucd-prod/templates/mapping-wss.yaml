@@ -1,0 +1,13 @@
+{{- if (.Capabilities.APIVersions.Has "getambassador.io/v2") }}
+{{- include "sch.config.init" (list . "ibm-ucd-prod.sch.chart.config.values") -}}
+{{- $fullName := include "sch.names.fullName" (list .) -}}
+apiVersion: getambassador.io/v2
+kind: TCPMapping
+metadata:
+  name: {{ $fullName }}-wss
+  labels:
+{{ include "sch.metadata.labels.standard" (list . "mapping") | indent 4 }}
+spec:
+  service: {{ $fullName }}:7919
+  port: 7919
+{{- end }}

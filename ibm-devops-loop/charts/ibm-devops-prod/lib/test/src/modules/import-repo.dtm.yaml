@@ -1,0 +1,5 @@
+messages:
+  RESPONSE:
+    fields:
+      - content/state:
+          - var: REPO_STATE

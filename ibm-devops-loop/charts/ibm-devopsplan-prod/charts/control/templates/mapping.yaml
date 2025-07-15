@@ -1,0 +1,127 @@
+#
+# Licensed Materials - Property of HCL
+# (C) Copyright HCL Technologies Ltd. 2024, 2025.  All Rights Reserved.
+# Note to U.S. Government Users Restricted Rights:
+# Use, duplication or disclosure restricted by GSA ADP Schedule Contract
+#
+{{- if (eq .Values.ingress.type "mapping") }}
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-2'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-2'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+{{- if and .Values.global.plan.enabled (not .Values.global.platform.enabled) }}
+  host: {{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.{{ default ".*" .Values.global.domain }}
+{{- else }}
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+{{- end }}
+  prefix: {{ default "/" (default .Values.ingress.mapping.prefix .Values.ingress.path) }}
+  # use default rewrite of "/"
+  service: http://{{ template "gitea.fullname" .}}-http:3000
+  timeout_ms: 0
+---
+{{- if (and .Values.ingress.mapping.prefix (not (hasSuffix "/" (default .Values.ingress.mapping.prefix .Values.ingress.path)))) }}
+{{/* If the prefix doesn't include "/", we add another one with it, so
+that the passed-through URLs don't have double slashes at the front */}}
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-2'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-2suffix'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+{{- if and .Values.global.plan.enabled (not .Values.global.platform.enabled) }}
+  host: {{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.{{ default ".*" .Values.global.domain }}
+{{- else }}
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+{{- end }}
+  prefix: "{{ (default .Values.ingress.mapping.prefix .Values.ingress.path) }}/"
+  # use default rewrite of "/"
+  service: http://{{ template "gitea.fullname" .}}-http:3000
+  timeout_ms: 0
+---
+{{- end }}
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Chart.Name }}-3'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ .Chart.AppVersion }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-{{ .Chart.Name }}-3'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  bypass_auth: true
+{{- if and .Values.global.plan.enabled (not .Values.global.platform.enabled) }}
+{{/* the fullname macro picks up the chart name, which could be the
+subchart name and not the parent chart name */}}
+  host: {{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.{{ default ".*" .Values.global.domain }}
+{{- else }}
+  host: '{{ .Values.global.domain }}(.443)?'
+  host_regex: true
+{{- end }}
+  # Gross hack for Gitea container registry bogosity
+  prefix: /v2
+  rewrite: "/v2"
+  service: http://{{ template "gitea.fullname" .}}-http:3000
+  timeout_ms: 0
+---
+apiVersion: getambassador.io/v3alpha1
+kind: TCPMapping
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Release.Name }}-ssh-tcp'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-ssh-tcp'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  # Match the port in the Listener config, which must be a port
+  # exposed by the emissary load balancer.  Edit that with:
+  #  kubectl edit -n emissary service emissary-ingress
+  # and add a port:
+  # - name: ssh-gitea
+  #   {{- if .Values.gitea.config.server.SSH_PORT }}
+  #   nodePort: {{ add 32221 -9022 .Values.gitea.config.server.SSH_PORT }}
+  #   {{- else }}
+  #   nodePort: 32221
+  #   {{- end }}
+  #   port: {{ default 9022 .Values.gitea.config.server.SSH_PORT }}
+  #   protocol: TCP
+  #   targetPort: {{ default 9022 .Values.gitea.config.server.SSH_PORT }}
+  port: {{ default 9022 .Values.gitea.config.server.SSH_PORT }}
+  # This port links to the port in ssh-svc.yaml
+  service: {{ template "gitea.fullname" .}}-ssh:22
+{{- end }}

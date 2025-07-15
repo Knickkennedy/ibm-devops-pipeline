@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: application-api
+  labels:
+    {{- include "ucv.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- $vars := merge (dict) . -}}
+      {{- $_ := set $vars "ucvService" "application-api" -}}
+      {{- include "ucv.selector" $vars | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- $vars := merge (dict) . -}}
+        {{- $_ := set $vars "ucvService" "application-api" -}}
+        {{- include "ucv.specTemplateLabels" $vars | nindent 8 }}
+      annotations:
+        {{- include "ucv.productAnnotations" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccountName }}
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      imagePullSecrets:
+        {{- include "ucv.imagePullSecrets" . | nindent 8 }}
+      affinity:
+        {{- $vars := merge (dict) . -}}
+        {{- $_ := set $vars "ucvWorkloadClass" "transactional" -}}
+        {{- include "ucv.nodeAffinity" $vars | nindent 8 }}
+      containers:
+        - name: application-api
+          image:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvImageRegistry" .Values.imageRegistry.velocityRegistry -}}
+            {{- $_ := set $vars "ucvImageRegistryPath" .Values.imageRegistry.velocityPath -}}
+            {{- $_ := set $vars "ucvImageName" "application-api" -}}
+            {{- $_ := set $vars "ucvImageTag" "5.1.6.6" -}}
+            {{- include "ucv.image" $vars | nindent 12 }}
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3499
+          env:
+            - name: NODE_OPTIONS
+              {{- $vars := merge (dict) . -}}
+              {{- $_ := set $vars "ucvService" "application-api" -}}
+              {{- include "ucv.maxOldSpaceSize" $vars | nindent 14 }}
+            - name: PORT
+              value: '3499'
+            - name: LOG_LEVEL
+              value: {{ .Values.loglevel }}
+            - name: OPEN_TELEMETRY
+              value: {{ .Values.openTelemetryEnabled }}
+            - name: OPEN_TELEMETRY_LOG_LEVEL
+              value: {{ .Values.openTelemetryLogLevel }}
+            - name: OPEN_TELEMETRY_COLLECTOR
+              value: {{ index .Values "opentelemetry-collector" "fullnameOverride" }}
+            - name: DB_TYPE
+              value: mongo
+            - name: MONGO_URL
+              {{- include "ucv.mongoUrl" . | nindent 14 }}
+            - name: MONGO_DB
+              value: application-api
+            - name: BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.tokens }}
+                  key: apiToken
+            - name: GRAPHQL_URL
+              value: http://release-events-api:8080
+            - name: RABBITMQ_HOST
+              value: velocity-rabbitmq
+            - name: RABBITMQ_PORT
+              value: '5672'
+            - name: RABBITMQ_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.rabbit }}
+                  key: user
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.rabbit }}
+                  key: password
+            - name: SECURITY_API_URL
+              value: 'http://security-api:3911'
+          resources:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "application-api" -}}
+            {{- include "ucv.resources" $vars | nindent 12 }}
+          securityContext:
+            {{- include "ucv.securityContext" . | nindent 12 }}
+          livenessProbe:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "application-api" -}}
+            {{- $_ := set $vars "ucvLivenessPort" 3499 -}}
+            {{- include "ucv.livenessProbe" $vars | nindent 12 }}
+          readinessProbe:
+            {{- $vars := merge (dict) . -}}
+            {{- $_ := set $vars "ucvService" "application-api" -}}
+            {{- $_ := set $vars "ucvReadinessPort" 3499 -}}
+            {{- include "ucv.readinessProbe" $vars | nindent 12 }}
+          {{- include "ucv.mongoVolumeMounts" . | nindent 10 }}
+      {{- include "ucv.mongoVolumes" . | nindent 6 }}

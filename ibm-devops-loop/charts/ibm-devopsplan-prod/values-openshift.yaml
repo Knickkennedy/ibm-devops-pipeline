@@ -1,0 +1,42 @@
+ingress:
+  enabled: true
+  type: route
+
+keycloaksrv:
+  proxyAddressForwarding: true
+  service:
+    type: ClusterIP
+  proxy: edge
+
+  ingress:
+    enabled: false
+    type: route
+  route:
+    enabled: true
+    annotations:
+      haproxy.router.openshift.io/timeout: 5m
+
+  http:
+    enabled: true
+  https:
+    enabled: true
+  extraEnvVars:
+    - name: KEYCLOAK_PROXY_ADDRESS_FORWARDING
+      value: "true"
+  podSecurityContext:
+    enabled: true
+    fsGroup: 1000640000  # Use a valid OpenShift FSGroup range
+
+  containerSecurityContext:
+    enabled: true
+    runAsUser: 1000640000  # Use OpenShift-compliant UID
+
+  postgresql:
+    primary:
+      podSecurityContext:
+        enabled: true
+        fsGroup: 1000640000
+        
+      containerSecurityContext:
+        enabled: true
+        runAsUser: 1000640000

@@ -1,0 +1,15 @@
+{{- if (.Capabilities.APIVersions.Has "getambassador.io/v2") }}
+apiVersion: getambassador.io/v2
+kind: Mapping
+metadata:
+  name: {{ .Release.Name }}-build-mapping
+  labels:
+{{ include "ibm-devops-build.labels" . | indent 4 }}
+spec:
+  host: {{ .Values.global.domain }}
+  prefix: {{ .Values.ingress.path }}
+  rewrite: ""
+  service: http://{{ .Values.server.service.name }}:{{ .Values.server.service.ports.http }}
+  bypass_auth: true
+  timeout_ms: {{ .Values.server.service.timeout_ms }}
+{{- end }}

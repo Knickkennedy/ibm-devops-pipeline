@@ -1,0 +1,83 @@
+{{- if include "testhub.execution.enabled" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: execution
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-execution'
+data:
+  inventory.yml: |
+    version: '3'
+    services:
+      shared:
+        imagePullPolicy: '{{ .Values.execution.enginePullPolicy }}'
+{{- if include "testhub.ibmImagePullSecret" . }}
+        imagePullSecret: '{{ include "testhub.ibmImagePullSecret" . }}'
+{{- end }}
+{{- if (eq .Values.ingress.type "mapping") }}
+{{- if .Values.global.ambassadorID }}
+        ambassadorID: '{{ .Values.global.ambassadorID }}'
+{{- end }}
+        ambassadorTimeoutMs: '{{ default "30000" .Values.global.ambassadorTimeoutMs }}'
+{{- end }}
+        ingressGatwayName: '{{ default (print .Release.Name "-execution") .Values.execution.ingress.gatewayName }}'
+        ingressType: '{{ .Values.ingress.type }}'
+        ingressSecretName: '{{ ternary .Values.global.ibmCertSecretName "none" .Values.ingress.cert.selfSigned }}'
+        initImage: '{{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.init.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.init.image .Values.imageRepoRepl }}'
+        initResources: '{{ toJson .Values.execution.template.fetch.resources }}'
+        priorityClassName: '{{ .Values.execution.priorityClassName }}'
+        resources: '{{ toJson .Values.execution.template.resources }}'
+        runAsUser: {{ ternary "" .Values.securityContext.runAsUser (eq "null" (toString .Values.securityContext.runAsUser)) }}
+        serviceAccountName: '{{ .Release.Name }}-engine'
+        userCertsSecretName: '{{ .Values.userCertsSecretName }}'
+      api:
+        image: '{{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.extensions.api.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.extensions.api.image .Values.imageRepoRepl }}'
+        environment: null
+      workbench:
+        image: '{{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.extensions.workbench.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.extensions.workbench.image .Values.imageRepoRepl }}'
+        environment: null
+{{- if .Values.extensions.jmeter.enabled }}
+  jmeter-extensibility.properties: |
+    docker.image: {{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.extensions.jmeter.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.extensions.jmeter.image .Values.imageRepoRepl }}
+    docker.imagePullPolicy: {{ .Values.execution.enginePullPolicy }}
+    docker.imagePullSecret: {{ include "testhub.ibmImagePullSecret" . }}
+{{- end }}
+{{- if .Values.extensions.postman.enabled }}
+  postman-extensibility.properties: |
+    docker.image: {{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.extensions.postman.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.extensions.postman.image .Values.imageRepoRepl }}
+    docker.imagePullPolicy: {{ .Values.execution.enginePullPolicy }}
+    docker.imagePullSecret: {{ include "testhub.ibmImagePullSecret" . }}
+{{- end }}
+{{- if .Values.extensions.junit.enabled }}
+  junit-extensibility.properties: |
+    docker.image: {{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.extensions.junit.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.extensions.junit.image .Values.imageRepoRepl }}
+    docker.imagePullPolicy: {{ .Values.execution.enginePullPolicy }}
+    docker.imagePullSecret: {{ include "testhub.ibmImagePullSecret" . }}
+{{- end }}
+{{- if .Values.extensions.codesweep.enabled }}
+  codesweep-extensibility.properties: |
+    docker.image: {{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.extensions.codesweep.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.extensions.codesweep.image .Values.imageRepoRepl }}
+    docker.imagePullPolicy: {{ .Values.execution.enginePullPolicy }}
+    docker.imagePullSecret: {{ include "testhub.ibmImagePullSecret" . }}
+{{- end }}
+{{- if .Values.extensions.script.enabled }}
+  script-extensibility.properties: |
+    docker.browserName: firefox
+    docker.image: {{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.script.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.script.image .Values.imageRepoRepl }}
+    docker.imagePullPolicy: {{ .Values.execution.enginePullPolicy }}
+    docker.imagePullSecret: {{ include "testhub.ibmImagePullSecret" . }}
+    docker2.browserName: chrome
+    docker2.image: {{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.script.chrome.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.script.chrome.image .Values.imageRepoRepl }}
+    docker2.imagePullPolicy: {{ .Values.execution.enginePullPolicy }}
+    docker2.imagePullSecret: {{ include "testhub.ibmImagePullSecret" . }}
+    docker3.browserName: edge
+    docker3.image: {{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.script.edge.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.script.edge.image .Values.imageRepoRepl }}
+    docker3.imagePullPolicy: {{ .Values.execution.enginePullPolicy }}
+    docker3.imagePullSecret: {{ include "testhub.ibmImagePullSecret" . }}
+{{- end }}
+{{- end }}

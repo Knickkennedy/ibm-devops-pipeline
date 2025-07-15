@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "devops-platform.componentFullname" (dict "componentName" "keycloak-init-sh" "context" .) }}
+  labels:
+      {{- include "devops-platform.labels" (dict "componentName" "keycloak-init-sh" "context" .) | nindent 6 }}
+data:
+  admin-token.sh: |-
+    {{- .Files.Get "lib/keycloak/admin-token.sh" | nindent 4 }}
+  client-id.sh: |-
+    {{- .Files.Get "lib/keycloak/client-id.sh" | nindent 4 }}
+  client-create.sh: |-
+    {{- .Files.Get "lib/keycloak/client-create.sh" | nindent 4 }}
+  wait.sh: |-
+    {{- .Files.Get "lib/keycloak/wait.sh" | nindent 4 }}
+  update-theme.sh: |-
+    {{- .Files.Get "lib/keycloak/update-theme.sh" | nindent 4 }}
+  add-realm-roles-groups.sh: |-
+    {{- .Files.Get "lib/keycloak/add-realm-roles-groups.sh" | nindent 4 }}

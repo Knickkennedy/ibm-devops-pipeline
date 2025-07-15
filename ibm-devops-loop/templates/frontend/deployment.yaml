@@ -1,0 +1,284 @@
+{{- include "devops-platform.checkRequiredValues" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "devops-platform.componentFullname" (dict "componentName" "frontend" "context" .) }}
+  labels:
+      {{- include "devops-platform.labels" (dict "componentName" "frontend" "context" .) | nindent 6 }}
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "devops-platform.selectorLabels" (dict "componentName" "frontend" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      {{- with (mergeOverwrite (deepCopy .Values.platform.deploymentAnnotations) .Values.frontend.deploymentAnnotations) }}
+      annotations:
+        configmap-hash: {{ include (print $.Template.BasePath "/frontend/configmap.yaml") . | sha256sum }}
+        {{- range $key, $value := . }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+      {{- end }}
+      labels:
+        {{- include "devops-platform.labels" (dict "componentName" "frontend" "context" .) | nindent 8 }}
+        {{- with (mergeOverwrite (deepCopy .Values.platform.podLabels) .Values.frontend.podLabels) }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "devops-platform.serviceAccountName" (dict "componentName" "frontend" "context" .) }}
+      {{- with (mergeOverwrite (deepCopy .Values.platform.podAnnotations) .Values.frontend.podAnnotations) }}
+      annotations:
+        {{- range $key, $value := . }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+      {{- end }}
+      securityContext:
+        {{- with .Values.frontend.podSecurityContext | default .Values.platform.podSecurityContext }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      initContainers:
+        - name: init-httpd-conf
+          {{- with .Values.frontend.securityContext | default .Values.platform.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: {{ include "devops-platform.image" (dict "componentName" "frontend" "context" .) }}
+          command: ['sh', '-c', 'cp -a /etc/httpd/conf/* /mnt/conf']
+          volumeMounts:
+            - name: httpd-conf
+              mountPath: /mnt/conf
+        - name: keycloak-platform-client-create
+          command:
+          - sh
+          - -ec
+          - |
+            ./wait.sh $KEYCLOAK_URL/realms/$REALM_NAME/
+            ./client-create.sh
+          env:
+{{ include "devops-platform.container.keycloak-init-sh-env" $ | nindent 12 }}
+            - name: CLIENT_ID
+              value: {{ .Values.platform.oidc.clientId }}
+            - name: BASE_URL
+              value: 'https://{{ .Values.global.domain }}{{ .Values.global.platform.path }}'
+            - name: FRONT_CHANNEL_LOGOUT_URL
+              value: 'https://{{ .Values.global.domain }}{{ .Values.global.platform.path }}{{ .Values.platform.oidc.logoutPath }}'
+{{ include "devops-platform.container.keycloak-init-sh-trailer" $ | nindent 10 }}
+        - name: keycloak-deploy-client-create
+          command:
+          - sh
+          - -ec
+          - |
+            ./wait.sh $KEYCLOAK_URL/realms/$REALM_NAME/
+            ./client-create.sh
+          env:
+{{ include "devops-platform.container.keycloak-init-sh-env" $ | nindent 12 }}
+            - name: CLIENT_ID
+              value: {{ index .Values "ibm-ucd-prod" "platform" "oidc" "clientId" }}
+            - name: BASE_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-ucd-prod" "ingress" "path" }}'
+            - name: FRONT_CHANNEL_LOGOUT_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-ucd-prod" "ingress" "path" }}{{ index .Values "ibm-ucd-prod" "platform" "oidc" "logoutPath" }}'
+{{ include "devops-platform.container.keycloak-init-sh-trailer" $ | nindent 10 }}
+        - name: keycloak-code-client-create
+          command:
+          - sh
+          - -ec
+          - |
+            ./wait.sh $KEYCLOAK_URL/realms/$REALM_NAME/
+            ./client-create.sh
+          env:
+{{ include "devops-platform.container.keycloak-init-sh-env" $ | nindent 12 }}
+            - name: CLIENT_ID
+              value: {{ index .Values "ibm-devopscode" "platform" "oidc" "clientId" }}
+            - name: BASE_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopscode" "ingress" "path" }}'
+            - name: FRONT_CHANNEL_LOGOUT_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopscode" "ingress" "path" }}{{ index .Values "ibm-devopscode" "platform" "oidc" "logoutPath" }}'
+{{ include "devops-platform.container.keycloak-init-sh-trailer" $ | nindent 10 }}
+        - name: keycloak-plan-client-create
+          command:
+          - sh
+          - -ec
+          - |
+            ./wait.sh $KEYCLOAK_URL/realms/$REALM_NAME/
+            ./client-create.sh
+          env:
+{{ include "devops-platform.container.keycloak-init-sh-env" $ | nindent 12 }}
+            - name: CLIENT_ID
+              value: {{ index .Values "ibm-devopsplan-prod" "platform" "oidc" "clientId" }}
+            - name: BASE_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "ingress" "path" }}/'
+            - name: FRONT_CHANNEL_LOGOUT_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "ingress" "path" }}{{ index .Values "ibm-devopsplan-prod" "platform" "oidc" "logoutPath" }}'
+            - name: DIRECT_ACCESS_GRANTS
+              value: 'true'
+{{ include "devops-platform.container.keycloak-init-sh-trailer" $ | nindent 10 }}
+        - name: keycloak-control-client-create
+          command:
+          - sh
+          - -ec
+          - |
+            ./wait.sh $KEYCLOAK_URL/realms/$REALM_NAME/
+            ./client-create.sh
+          env:
+{{ include "devops-platform.container.keycloak-init-sh-env" $ | nindent 12 }}
+            - name: CLIENT_ID
+              value: {{index .Values "ibm-devopsplan-prod" "control" "platform" "oidc" "clientId"}}
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: oauth-client-secret
+                  name: '{{ tpl (index .Values "ibm-devopsplan-prod" "control" "platform" "oidc" "clientSecret") . }}'
+            - name: BASE_URL
+              value: '{{ index .Values "ibm-devopsplan-prod" "control" "ingress" "path" }}'
+            - name: FRONT_CHANNEL_LOGOUT_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "control" "ingress" "path" }}{{ index .Values "ibm-devopsplan-prod" "control" "platform" "oidc" "logoutPath" }}'
+{{ include "devops-platform.container.keycloak-init-sh-trailer" $ | nindent 10 }}
+        - name: keycloak-velocity-client-create
+          command:
+          - sh
+          - -ec
+          - |
+            ./wait.sh $KEYCLOAK_URL/realms/$REALM_NAME/
+            ./client-create.sh
+          env:
+{{ include "devops-platform.container.keycloak-init-sh-env" $ | nindent 12 }}
+            - name: CLIENT_ID
+              value: {{index .Values "ibm-ucv-prod" "platform" "oidc" "clientId"}}
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: oauth-client-secret
+                  name: '{{ tpl (index .Values "ibm-ucv-prod" "platform" "oidc" "clientSecret") . }}'
+            - name: BASE_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-ucv-prod" "ingress" "path" }}'
+            - name: FRONT_CHANNEL_LOGOUT_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-ucv-prod" "ingress" "path" }}{{ index .Values "ibm-ucv-prod" "platform" "oidc" "logoutPath" }}'
+{{ include "devops-platform.container.keycloak-init-sh-trailer" $ | nindent 10 }}
+        - name: keycloak-build-client-create
+          command:
+          - sh
+          - -ec
+          - |
+            ./wait.sh $KEYCLOAK_URL/realms/$REALM_NAME/
+            ./client-create.sh
+          env:
+{{ include "devops-platform.container.keycloak-init-sh-env" $ | nindent 12 }}
+            - name: CLIENT_ID
+              value: {{ index .Values "ibm-devops-build" "platform" "oidc" "clientId" }}
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: oauth-client-secret
+                  name: '{{ tpl (index .Values "ibm-devops-build" "platform" "oidc" "clientSecret") . }}'
+            - name: BASE_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devops-build" "ingress" "path" }}'
+            - name: FRONT_CHANNEL_LOGOUT_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devops-build" "ingress" "path" }}{{ index .Values "ibm-devops-build" "platform" "oidc" "logoutPath" }}'
+{{ include "devops-platform.container.keycloak-init-sh-trailer" $ | nindent 10 }}
+        - name: keycloak-opensearch-client-create
+          command:
+          - sh
+          - -ec
+          - |
+            ./wait.sh $KEYCLOAK_URL/realms/$REALM_NAME/
+            ./client-create.sh
+          env:
+{{ include "devops-platform.container.keycloak-init-sh-env" $ | nindent 12 }}
+            - name: CLIENT_ID
+              value: {{index .Values "ibm-devopsplan-prod" "platform" "opensearch" "oidc" "clientId"}}
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: oauth-client-secret
+                  name: '{{ tpl (index .Values "ibm-devopsplan-prod" "platform" "opensearch" "oidc" "clientSecret") . }}'
+            - name: BASE_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "dashboards" "basePath" }}'
+            - name: ROLES_CLAIM
+              value: '{{index .Values "ibm-devopsplan-prod" "platform" "opensearch" "oidc" "rolesClaim"}}'
+            - name: ENABLE_ID_TOKEN
+              value: '{{index .Values "ibm-devopsplan-prod" "platform" "opensearch" "oidc" "enableIDToken"}}'
+            - name: FRONT_CHANNEL_LOGOUT_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "dashboards" "basePath" }}/app/login'
+{{ include "devops-platform.container.keycloak-init-sh-trailer" $ | nindent 10 }}
+
+      containers:
+        - name: {{ .Values.frontend.name }}
+          {{- with .Values.frontend.securityContext | default .Values.platform.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: {{ include "devops-platform.image" (dict "componentName" "frontend" "context" .) }}
+          imagePullPolicy: {{ .Values.frontend.imagePullPolicy | default .Values.platform.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.frontend.service.port }}
+              protocol: TCP
+          env:
+            - name: BASE_NAME
+              value: {{ .Values.global.platform.path | quote }}
+          {{- with .Values.frontend.livenessProbe | default .Values.platform.livenessProbe }}
+          {{- if .enabled }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- with (.Values.frontend.readinessProbe) | default .Values.platform.readinessProbe }}
+          {{- if .enabled }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}
+          volumeMounts:
+            - name: httpd-run
+              mountPath: /etc/httpd/run
+            - name: httpd-lock
+              mountPath: /var/lock
+            - name: httpd-log
+              mountPath: /var/log/httpd
+            - name: httpd-tmp
+              mountPath: /tmp
+            - name: httpd-cache
+              mountPath: /var/cache/httpd
+            - name: httpd-conf
+              mountPath: /etc/httpd/conf
+            - name: app-config
+              mountPath: /var/www/html/config.json
+              subPath: config.json
+      volumes:
+        - name: httpd-run
+          emptyDir: {}
+        - name: httpd-lock
+          emptyDir: {}
+        - name: httpd-log
+          emptyDir: {}
+        - name: httpd-tmp
+          emptyDir: {}
+        - name: httpd-cache
+          emptyDir: {}
+        - name: httpd-conf
+          emptyDir: {}
+        - name: app-config
+          configMap:
+            name: {{ include "devops-platform.componentFullname" (dict "componentName" "frontend-config" "context" .) }}
+
+{{- template "devops-platform.volumes.keycloak-init-sh" $ }}
+{{- template "devops-platform.volumes.trust-store" $ }}
+      {{- with .Values.frontend.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.frontend.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.frontend.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

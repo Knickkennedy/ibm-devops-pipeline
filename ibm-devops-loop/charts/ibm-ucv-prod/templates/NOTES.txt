@@ -1,0 +1,7 @@
+You can access DevOps Velocity by navigating to the following link from your browser.
+{{- $domain := include "ucv.domain" . -}}
+{{ if eq (.Values.url.port | toString) "443" }}
+  {{ printf "%s://%s" .Values.url.protocol $domain | nindent 0 }}
+{{ else }}
+  {{ printf "%s://%s:%s" .Values.url.protocol $domain (.Values.url.port | toString)  | nindent 0 }}
+{{ end }}

@@ -1,0 +1,35 @@
+configuration:
+  vars:
+    PROJECT_URL:
+      modifier: out
+    DELETE_PROJECT: {}
+    DEPLOYMENT_URL: {}
+    DEPLOYMENT_PATH: {}
+    _DEPLOYMENT_REFRESH_TOKEN: {}
+steps:
+  - send:
+      note: create project
+      transport: ../auth.dtt.yaml
+      url: ${DEPLOYMENT_URL}${DEPLOYMENT_PATH}/rest/projects
+      request:
+        fields:
+          - headers/content-type:
+              - val: application/json
+          - content:
+              - val: '{"name":"Verification ${Date()}","description":"Used for Test
+                  Automation"}'
+      response:
+        fields:
+          - headers/location:
+              - var: PROJECT_URL
+      hooks:
+        end:
+          enabled: DELETE_PROJECT
+          steps:
+            - send:
+                transport: ../auth.dtt.yaml
+                url: ${DEPLOYMENT_URL}${PROJECT_URL}
+                request:
+                  fields:
+                    - method:
+                        - val: DELETE

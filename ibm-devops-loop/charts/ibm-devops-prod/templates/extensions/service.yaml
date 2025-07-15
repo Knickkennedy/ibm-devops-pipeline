@@ -1,0 +1,24 @@
+{{- if include "testhub.extensions.enabled" . }}
+{{- if (or (or (or (or (or (or (or (or (or .Values.extensions.jmeter.enabled .Values.extensions.junit.enabled) .Values.extensions.postman.enabled) .Values.extensions.codesweep.enabled) .Values.extensions.script.enabled) .Values.extensions.azure.enabled) .Values.extensions.etm.enabled) .Values.extensions.jira.enabled) .Values.extensions.plan.enabled) .Values.extensions.ai.enabled)}}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: extensions
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: extensions
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/name: extensions
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+{{- end }}
+{{- end }}

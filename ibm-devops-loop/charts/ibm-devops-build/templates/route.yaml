@@ -1,0 +1,36 @@
+{{- if (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ .Release.Name }}-build-route
+  labels:
+{{ include "ibm-devops-build.labels" . | indent 4 }}
+spec:
+  host: {{ .Values.global.domain | quote }}
+  path: {{ .Values.ingress.path | quote }}
+  subdomain: ''
+  to:
+    kind: Service
+    name: {{ .Values.server.service.name }}
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    {{- if .Values.global.ibmCertSecretName }}
+    {{- $tlsKey := index (lookup "v1" "Secret" .Release.Namespace .Values.global.ibmCertSecretName).data "tls.key" -}}
+    {{- $tlsCrt := index (lookup "v1" "Secret" .Release.Namespace .Values.global.ibmCertSecretName).data "tls.crt" -}}
+    {{- $caCert := index (lookup "v1" "Secret" .Release.Namespace .Values.global.ibmCertSecretName).data "ca.crt" -}}
+    {{- if $tlsKey }}
+    key: {{ $tlsKey | b64dec | quote }}
+    certificate: {{ $tlsCrt | b64dec | quote }}
+    {{- if $caCert }}
+    caCertificate: {{ $caCert | b64dec | quote }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+    insecureEdgeTerminationPolicy: Redirect
+  wildcardPolicy: None
+status:
+  ingress: []
+{{- end }}

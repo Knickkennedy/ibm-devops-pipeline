@@ -1,0 +1,32 @@
+#
+# Licensed Materials - Property of HCL
+# (C) Copyright HCL Technologies Ltd. 2024.  All Rights Reserved.
+# Note to U.S. Government Users Restricted Rights:
+# Use, duplication or disclosure restricted by GSA ADP Schedule Contract
+#
+{{- if (eq .Values.ingress.type "mapping") }}
+{{- if .Values.ingress.host.enabled }}
+apiVersion: getambassador.io/v3alpha1
+kind: Listener
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Release.Name }}-http'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-http'
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  # The port used by containers for listening ?
+  port: 3000
+  protocol: HTTP
+  securityModel: XFP
+  hostBinding:
+    namespace:
+      from: SELF
+{{- end }}
+{{- end }}

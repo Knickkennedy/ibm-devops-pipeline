@@ -1,0 +1,34 @@
+{{- if .Values.nginx.service -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ccm.fullname" . }}-nginx
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.nginx.type }}
+  sessionAffinity: ClientIP
+  ports:
+    - name: http
+      port: 8081
+      protocol: TCP
+      targetPort: 8081
+    - name: https
+      port: 5602
+    {{- if .Values.nginx.exposePort  }}
+      nodePort: {{ .Values.nginx.exposePort }}
+    {{- end }}
+      protocol: TCP
+      targetPort: 5602
+    - name: http2
+      port: 5603
+      protocol: TCP
+      targetPort: 5603
+    - name: https3
+      port: 8191
+      protocol: TCP
+      targetPort: 8191
+  selector:
+    app.kubernetes.io/name: {{ include "ccm.name" . }}-nginx
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}

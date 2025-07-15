@@ -1,0 +1,19 @@
+{{- if include "testhub.execution.enabled" . }}
+{{- if .Values.execution.priorityClassName }}
+{{- if .Values.execution.priorityClassValue }}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Values.execution.priorityClassName }}'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Values.execution.priorityClassName }}'
+value: {{ .Values.execution.priorityClassValue }}
+globalDefault: false
+{{- end }}
+{{- end }}
+{{- end }}

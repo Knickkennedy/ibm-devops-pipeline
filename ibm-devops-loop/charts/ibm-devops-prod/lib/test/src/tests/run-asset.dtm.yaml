@@ -1,0 +1,5 @@
+messages:
+  RESPONSE:
+    fields:
+      - content/status:
+          - var: RUN_STATUS

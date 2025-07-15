@@ -1,0 +1,11 @@
+fields:
+  - tls/ca-path:
+      - dir: .
+  - auth/oauth2:
+      - fields:
+          - grant-type:
+              - val: refresh_token
+          - token-url:
+              - val: ${DEPLOYMENT_URL}${DEPLOYMENT_PATH}/rest/tokens/
+          - refresh-token:
+              - val: '${_DEPLOYMENT_REFRESH_TOKEN}'

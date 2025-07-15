@@ -1,0 +1,123 @@
+{{- if not .Values.global.platform.enabled }}
+{{- if (and (or (eq .Values.ingress.type "mapping") (eq .Values.ingress.type "route")) (eq .Values.control.enabled true) (not .Values.control.postgresql.host)) -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: '{{ include "ccm.fullname" . }}-postgresql-init-sh'
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+data:
+  create-users.sh: |
+    #!/bin/bash
+    connection-params() {
+      echo "-U postgres -w -h {{ include "plan.fullname" . }}-postgresql"
+    }
+    # Assumes the scret is mounted on /pwds/<secret-name>
+    # $1 - secret-name
+    get-password-from-secret() {
+      cat /pwds/"$1"/postgresql-password
+    }
+    # $1 - user
+    create-user() {
+      local password
+
+      password="$(get-password-from-secret $1)"
+
+      if ! createuser $(connection-params) -I "$1"; then
+        echo "User $1 already exists"
+      fi
+      echo "User $1 setting password"
+      psql $(connection-params) -c "alter user $1 password '$password'"
+    }
+    # $1 - database name
+    # $2 - user (if not supplied, user of database is assumed to be the same as the database name)
+    create-database() {
+      local dbName
+      local dbUser
+      dbName="$1"
+      if [ $# -eq 1 ]; then
+        dbUser="$1"
+      else
+        dbUser="$2"
+      fi
+      psql $(connection-params) -c "create database $dbName"
+      psql $(connection-params) -c "alter database $dbName owner to $dbUser"
+      psql $(connection-params) -c "revoke connect on database $dbName from public"
+      psql $(connection-params) -c "grant create on schema public to $dbUser" $dbName
+      {{- if .Values.postgresql.debugEnabled }}
+      create-extension $dbName "pg_stat_statements"
+      {{- end }}
+    }
+    # $1 - database name
+    # $2 - extension name
+    create-extension() {
+      local dbName
+      dbName="$1"
+      extension="$2"
+      psql $(connection-params) -d $dbName -c "create extension $extension"
+      psql $(connection-params) -d $dbName -c "alter extension $extension update"
+    }
+
+    # $1 - user name
+    # $2 - connection limit
+    set-max-connections() {
+      psql $(connection-params) -c "alter user $1 with connection limit $2"
+    }
+
+    # $1 - name
+    # Create user and database with the same name.
+    # The user's password is expected to be found in /pwds/$1/postgresql-password
+    create-user-and-db() {
+      create-user "$1"
+      create-database "$1"
+    }
+
+    drop-database-if-exists() {
+      local dbName
+      dbName="$1"
+      psql $(connection-params) -c "drop database if exists $dbName"
+    }
+
+    if [ "$1" == "--drop-dbs" ]; then
+{{- range $key, $value := .Values.postgresql.dbs }}
+      drop-database-if-exists {{ $key }}
+{{- end }}
+    fi
+
+{{- range $key, $value := .Values.postgresql.dbs }}
+{{- range $rank := list "primary" "secondary" }}
+{{- if eq $rank (hasKey $value "owner" | ternary "secondary" "primary") }}
+
+{{- if hasKey $value "owner" }}
+    create-database {{ $key }} {{ $value.owner }}
+{{- else }}
+    create-user-and-db {{ $key }}
+{{- if $value.connections }}
+    set-max-connections {{ $key }} {{ $value.connections }}
+{{ end }}
+{{- end }}
+{{- range $ext := $value.extensions }}
+    create-extension {{ $key }} {{ $ext }}
+{{- end }}
+
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.postgresql.migrate.enabled }}
+    for dbName in $(psql $(connection-params) --tuples-only -c "SELECT datname FROM pg_database WHERE datistemplate = false")
+    do
+      psql $(connection-params) -d $dbName -c "analyze"
+    done
+{{- end }}
+
+    # Dump the databases and users to stdout
+    psql $(connection-params) <<EOF
+    \l
+    \du
+    SELECT rolname as Username, rolconnlimit as max_connections
+    FROM pg_roles
+    WHERE rolconnlimit <> -1;
+    EOF
+{{- end }}
+{{- end }}

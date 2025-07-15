@@ -1,0 +1,165 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: ssocloak
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ print .Release.Name "-ssocloak" | trunc 20 | trimSuffix "-" }}'
+spec:
+  podManagementPolicy: OrderedReady
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: '{{ .Release.Name }}'
+      app.kubernetes.io/name: ssocloak
+      app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+  serviceName: '{{ print .Release.Name "-ssocloak" | trunc 20 | trimSuffix "-" }}-headless'
+  template:
+    metadata:
+      annotations:
+        cloudpakId: dedb7a9445a44fb88c927c1658243cd1
+        cloudpakMetric: RESOURCE_UNIT
+        cloudpakName: IBM DevOps for IBM Cloud Paks
+        productChargedContainers: All
+        productCloudpakRatio: "1:1"
+        productID: e3e180b0faae4301b54c5c9b37319e5c
+        productMetric: FLOATING_USER
+        productName: IBM Rational Test Automation Server Basic
+        productVersion: "11.0.5"
+      labels:
+        app.kubernetes.io/instance: '{{ .Release.Name }}'
+        app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+        app.kubernetes.io/name: ssocloak
+        app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+        app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+        helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+{{- if .Values.priorityClassName }}
+      priorityClassName: '{{ .Values.priorityClassName }}'
+{{- end }}
+      containers:
+      - name: main
+        image: '{{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.keycloak.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.keycloak.image .Values.imageRepoRepl }}'
+        imagePullPolicy: IfNotPresent
+        args:
+          - start
+          - --optimized
+          - --spi-connections-jpa-default-migration-strategy=update
+          - --proxy-headers={{ .Values.keycloak.proxyHeaders }}
+          - --http-enabled=true
+{{- if .Values.ingress.cert.selfSigned }}
+          - --truststore-paths=/usr/share/pki/ingress,/usr/share/pki/usercerts
+{{- else }}
+          - --truststore-paths=/usr/share/pki/usercerts
+{{- end }}
+          - --tls-hostname-verifier={{ .Values.keycloak.truststoreFileHostnameVerificationPolicy }}
+          - --spi-login-protocol-openid-connect-legacy-logout-redirect-uri=true
+        env:
+        - name: KC_DB_URL_HOST
+          value: '{{ .Release.Name }}-postgresql'
+        - name: KC_DB_URL_DATABASE
+          value: keycloak
+        - name: KC_DB_URL_PORT
+          value: '5432'
+        - name: KC_DB_USERNAME
+          value: keycloak
+        - name: KC_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: postgresql-password
+              name: '{{ .Release.Name }}-keycloak'
+        - name: KEYCLOAK_ADMIN
+          value: '{{ .Values.keycloak.username }}'
+        - name: KEYCLOAK_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: password
+              name: '{{ .Release.Name }}-keycloak'
+        - name: INGRESS_DOMAIN
+          value: '{{ .Values.global.domain }}'
+        - name: KC_HOSTNAME
+          value: '$(INGRESS_DOMAIN)'
+        - name: JAVA_OPTS_APPEND
+          value: '-Djgroups.dns.query={{ print .Release.Name "-ssocloak" | trunc 20 | trimSuffix "-" }}-headless.{{ .Release.Namespace }}.svc.{{ .Values.clusterDomain }}'
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        - containerPort: 9000
+          name: management
+          protocol: TCP
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: '{{ .Values.keycloak.path }}/health/live'
+            port: management
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 1
+        readinessProbe:
+          httpGet:
+            path: '{{ .Values.keycloak.path }}/health/ready'
+            port: management
+          initialDelaySeconds: 10
+          timeoutSeconds: 1
+        livenessProbe:
+          httpGet:
+            path: '{{ .Values.keycloak.path }}/health/live'
+            port: management
+          initialDelaySeconds: 0
+          timeoutSeconds: 5
+{{- if .Values.keycloak.resources }}
+        resources: {{- toYaml .Values.keycloak.resources | nindent 10 }}
+{{- end }}
+{{- template "testhub.container.security-context" .Values.containerSecurityContext }}
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+        - name: keycloak-tmp
+          mountPath: /opt/keycloak/data/tmp
+{{- if .Values.ingress.cert.selfSigned }}
+        - name: ingress
+          mountPath: /usr/share/pki/ingress/ca.crt
+          subPath: ca.crt
+          readOnly: true
+{{- end }}
+        - name: usercerts
+          mountPath: /usr/share/pki/usercerts
+          readOnly: true
+{{- if include "testhub.ibmImagePullSecret" . }}
+      imagePullSecrets:
+      - name: '{{ include "testhub.ibmImagePullSecret" . }}'
+{{- end }}
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      initContainers:
+{{- template "testhub.initContainers.pg-isready" (merge (dict "dbName" "keycloak" "secret" (printf "%s-keycloak" .Release.Name)) .) }}
+{{- template "testhub.pod.security-context" $ }}
+      serviceAccountName: '{{ print .Release.Name "-ssocloak" | trunc 20 | trimSuffix "-" }}'
+      terminationGracePeriodSeconds: 60
+      volumes:
+      - name: secrets
+        secret:
+          secretName: '{{ .Release.Name }}-keycloak'
+      - name: tmp
+        emptyDir: {}
+      - name: keycloak-tmp
+        emptyDir: {}
+{{- template "testhub.volumes.trust-store" $ }}

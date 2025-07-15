@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-code-container-mgr
+  labels:
+    app: devops-code-container-mgr
+    devops-code: code
+spec:
+  ports:
+  - name: http0
+    port: {{ .Values.containermgrservice.port }}
+    targetPort: 3005
+  selector:
+    app: devops-code-container-mgr
+    devops-code: code
+  type: ClusterIP    
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devops-code-container-mgr
+  labels:
+    app: devops-code-container-mgr
+    devops-code: code
+spec:
+  replicas: {{ .Values.containermgrimage.replicaCount }}
+  selector:
+    matchLabels:
+      app: devops-code-container-mgr
+      devops-code: code
+  template:
+    metadata:
+      labels:
+        app: devops-code-container-mgr
+        devops-code: code
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: devops-code-container-mgr
+        image: {{ .Values.global.imageRegistry }}/{{ .Values.containermgrimage.imageName }}:{{ .Values.containermgrimage.tag}}
+        imagePullPolicy: {{ .Values.containermgrimage.pullPolicy }}
+        ports:
+        - containerPort: 3005 
+        env:
+        - name: IMAGE_REGISTRY
+          value: {{ .Values.global.imageRegistry }}
+        - name: RWO_STORAGE_CLASS
+          value: {{ .Values.global.persistence.rwoStorageClass }}            
+        - name: RWX_STORAGE_CLASS
+          value: {{ .Values.global.persistence.rwxStorageClass }}              
+        - name: IMAGE_PULL_SECRETS
+          {{- if gt (len .Values.global.imagePullSecrets) 0 }}
+          value: {{ (index .Values.global.imagePullSecrets 0).name | quote }}
+          {{- else }}
+          value: ""
+          {{- end }}        
+        - name: PLATFORM_NAMESPACE
+          value: {{ .Release.Namespace }}
+        - name: PLATFORM_ISSUER_PATH
+          value: {{ .Values.global.platform.oidc.issuerPath }}
+        - name: PLATFORM_FQDM
+          value: {{ .Values.global.domain }}
+        - name: PLATFORM_CLIENT_ID
+          value: {{ .Values.platform.oidc.clientId }}
+        - name: PLATFORM_PATH
+          value: {{ .Values.global.platform.path }}   
+        - name: IS_OCP
+          {{- if (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+          value: "true"
+          {{- else }}
+          value: "false"
+          {{- end }}    
+                  
+      serviceAccountName: devops-code-container-mgr-svcact

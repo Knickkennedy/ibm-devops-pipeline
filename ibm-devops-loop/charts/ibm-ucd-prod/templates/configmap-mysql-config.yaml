@@ -1,0 +1,9 @@
+{{- include "sch.config.init" (list . "ibm-ucd-prod.sch.chart.config.values") -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-mysql-devops-config
+data:
+  mysql.devops.cnf: |
+    [mysqld]
+    binlog_expire_logs_seconds=259200

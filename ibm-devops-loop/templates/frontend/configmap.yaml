@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+
+  name: {{ include "devops-platform.componentFullname" (dict "componentName" "frontend-config" "context" .) }}
+  labels:
+      {{- include "devops-platform.labels" (dict "componentName" "frontend" "frontend-config" .) | nindent 6 }}
+data:
+  config.json: |
+    {
+      "solutions": [
+        {
+          "name": "Test",
+          "path": "https://{{ .Values.global.domain }}{{ index .Values "ibm-devops-prod" "ingress" "path" }}",
+          "routePath": "/solution/test"
+        },
+        {
+          "name": "Deploy",
+          "path": "https://{{ .Values.global.domain }}{{ index .Values "ibm-ucd-prod" "ingress" "path" }}",
+          "routePath": "/solution/deploy"
+        },
+        {
+          "name": "Plan",
+          "path": "https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "ingress" "path" }}/",
+          "routePath": "/solution/plan"
+        },
+        {
+          "name": "Measure",
+          "path": "https://{{ .Values.global.domain }}{{ index .Values "ibm-ucv-prod" "ingress" "path" }}/valuestreams",
+          "routePath": "/solution/value-stream"
+        },
+        {
+          "name": "Release",
+          "path": "https://{{ .Values.global.domain }}{{ index .Values "ibm-ucv-prod" "ingress" "path" }}/releases",
+          "routePath": "/solution/release"
+        },
+        {
+          "name": "Control",
+          "path": "https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "control" "ingress" "path" }}/",
+          "routePath": "/solution/control"
+        },
+        {
+          "name": "Code",
+          "path": "https://{{ .Values.global.domain }}{{ index .Values "ibm-devopscode" "ingress" "path" }}/",
+          "routePath": "/solution/code",
+          "show": {{ default false .Values.platform.code.enabled }}
+        },
+        {
+          "name": "Build",
+          "path": "https://{{ .Values.global.domain }}{{ index .Values "ibm-devops-build" "ingress" "path" }}/",
+          "routePath": "/solution/build",
+          "show": {{ default false .Values.platform.build.enabled }}
+        }
+      ],
+      "services": {
+        "provider":{
+          "name": "{{ include "devops-platform.brand" . }}"
+        },
+        "license":{ 
+            "url":"https://{{ .Values.global.domain }}{{ .Values.licensing.ingress.path }}{{ .Values.licensing.apiPath }}"
+        },
+        "loop": {
+          "url": "https://{{ .Values.global.domain }}{{ .Values.loop.ingress.path }}{{ .Values.loop.apiPath }}",
+          "show": {{ default true .Values.loop.enabled }}
+        },
+        "tenant": {
+          "url": "https://{{ .Values.global.domain }}{{ .Values.tenant.ingress.path }}{{ .Values.tenant.apiPath }}",
+          "show": {{ default true .Values.tenant.enabled }}
+        },
+        "analyticsai": {
+          "url": "https://{{ .Values.global.domain }}{{ .Values.analyticsai.ingress.path }}{{ .Values.analyticsai.apiPath }}",
+          "show": {{ default true .Values.analyticsai.enabled }}
+        },
+        "dashboards": {
+          "url": "https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "dashboards" "basePath" }}",
+          "show": {{ default false .Values.platform.plan.enabled }}
+        },
+        "disable": {
+          "show": {{ default false .Values.platform.disable.enabled }}
+        },
+        "edit": {
+          "manage_users_teamspace": {
+            "show": {{ default true .Values.platform.manage_users_teamspace.enabled }}
+          },
+          "manage_users_loop": {
+            "show": {{ default true .Values.platform.manage_users_loop.enabled }}
+          }
+        },
+        "delete_user": {
+          "show": {{ default false .Values.platform.delete_user.enabled }}
+        }
+      },
+      "oidc" : {
+        "issuer": "https://{{ .Values.global.domain }}{{ .Values.global.platform.oidc.issuerPath }}",
+        "authorization": "https://{{ .Values.global.domain }}{{ .Values.global.platform.oidc.authorizationPath }}",
+        "token": "https://{{ .Values.global.domain }}{{ .Values.global.platform.oidc.tokenPath }}",
+        "userinfo": "https://{{ .Values.global.domain }}{{ .Values.global.platform.oidc.userinfoPath }}",
+        "introspection": "https://{{ .Values.global.domain }}{{ .Values.global.platform.oidc.introspectionPath }}",
+        "jwks": "https://{{ .Values.global.domain }}{{ .Values.global.platform.oidc.jwksPath }}",
+        "logout": "https://{{ .Values.global.domain }}{{ .Values.global.platform.oidc.logoutPath }}",
+        "clientId": "{{ .Values.platform.oidc.clientId }}",
+        "redirect_uri" : "https://{{ .Values.global.domain }}{{ .Values.global.platform.path }}"
+      },
+      "polling": {
+        "interval": "{{ .Values.platform.loopSettings.interval }}",
+        "maxRetries": "{{ .Values.platform.loopSettings.maxRetries }}"
+      }
+    }

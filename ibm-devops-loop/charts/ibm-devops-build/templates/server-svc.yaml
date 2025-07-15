@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.server.service.name }}
+  labels:
+{{ include "ibm-devops-build.labels" . | indent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    app: {{ .Values.server.service.name }}
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+  ports:
+    - name: https
+      protocol: TCP
+      port: {{ .Values.server.service.ports.https }}
+      targetPort: {{ .Values.server.service.ports.https }}
+    - name: http
+      protocol: TCP
+      port: {{ .Values.server.service.ports.http }}
+      targetPort: {{ .Values.server.service.ports.http }}
+    - name: agent
+      protocol: TCP
+      port: {{ .Values.server.service.ports.agent }}
+      targetPort: {{ .Values.server.service.ports.agent }}

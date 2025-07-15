@@ -1,0 +1,15 @@
+dependencies:
+- name: postgresql
+  repository: oci://docker-hub.us-artifactory1.nonprod.hclpnp.com/bitnamicharts
+  version: 15.5.20
+- name: postgresql-ha
+  repository: oci://docker-hub.us-artifactory1.nonprod.hclpnp.com/bitnamicharts
+  version: 14.2.14
+- name: redis-cluster
+  repository: oci://docker-hub.us-artifactory1.nonprod.hclpnp.com/bitnamicharts
+  version: 10.2.9
+- name: redis
+  repository: oci://docker-hub.us-artifactory1.nonprod.hclpnp.com/bitnamicharts
+  version: 19.6.4
+digest: sha256:8fa2f9b4c30b40d7b219eebc806d8d0eb5bdb926093a2270705c57966c14f00c
+generated: "2025-06-12T13:23:22.387125606-04:00"

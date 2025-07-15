@@ -1,0 +1,22 @@
+{{- if include "testhub.tam.enabled" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: tam
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: tam
+spec:
+  ports:
+  - name: http
+    port: 8900
+    targetPort: http
+  selector:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/name: tam
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+{{- end }}

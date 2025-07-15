@@ -1,0 +1,244 @@
+{{- include "devops-platform.checkRequiredValues" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "devops-platform.componentFullname" (dict "componentName" "loop" "context" .) }}
+  labels:
+      {{- include "devops-platform.labels" (dict "componentName" "loop" "context" .) | nindent 6 }}
+spec:
+  replicas: {{ .Values.loop.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "devops-platform.selectorLabels" (dict "componentName" "loop" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      {{- with (mergeOverwrite (deepCopy .Values.platform.deploymentAnnotations) .Values.loop.deploymentAnnotations) }}
+      annotations:
+        {{- range $key, $value := . }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+      {{- end }}
+      labels:
+        {{- include "devops-platform.labels" (dict "componentName" "loop" "context" .) | nindent 8 }}
+        {{- with (mergeOverwrite (deepCopy .Values.platform.podLabels) .Values.loop.podLabels) }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "devops-platform.serviceAccountName" (dict "componentName" "loop" "context" .) }} 
+      {{- with (mergeOverwrite (deepCopy .Values.platform.podAnnotations) .Values.loop.podAnnotations) }}
+      annotations:
+        {{- range $key, $value := . }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+      {{- end }}
+      securityContext:
+        {{- with .Values.loop.podSecurityContext | default .Values.platform.podSecurityContext }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      initContainers:
+{{- $image := include "devops-platform.image" (dict "componentName" "loop" "context" .) -}}
+{{- template "devops-platform.initContainers.trust-store" (merge (dict "image" $image) . ) -}}
+{{- template "devops-platform.initContainers.pg-isready" (merge (dict "dbName" "loop") .) }}
+{{- template "devops-platform.initContainers.liquibase-update" (merge (dict "svc" "loop" "dbName" "loop" "image" (include "devops-platform.image" (dict "componentName" "loop" "context" .))) .) }}
+{{ include "devops-platform.initContainers.keycloak-add-realm-roles-groups" . | nindent 6 }}
+      - name: keycloak-loop-client-create
+        command:
+        - sh
+        - -ec
+        - |
+          ./wait.sh $KEYCLOAK_URL/realms/$REALM_NAME/
+          ./client-create.sh
+        env:
+{{- if index .Values "ibm-devops-prod" "ingress" "cert" "selfSigned" }}
+          - name: CAFILE
+            value: '--cacert /usr/share/pki/ingress/ca.crt'
+{{- end }}
+          - name: INGRESS_DOMAIN
+            value: '{{ .Values.global.domain }}'
+          - name: KEYCLOAK_URL
+            value: https://$(INGRESS_DOMAIN){{ index .Values "ibm-devops-prod" "keycloak" "path" }}
+          - name: REALM_NAME
+            value: {{ index .Values "ibm-devops-prod" "keycloak" "realm" }}
+          - name: ADMIN_NAME
+            value: {{ index .Values "ibm-devops-prod" "keycloak" "username" }}
+          - name: ADMIN_PASS
+            valueFrom:
+              secretKeyRef:
+                key: password
+                name: '{{ .Release.Name }}-keycloak'
+          - name: BASE_URL
+            value: 'https://{{ .Values.global.domain }}{{ .Values.global.platform.path }}'
+          - name: FRONT_CHANNEL_LOGOUT_URL
+            value: 'https://{{ .Values.global.domain }}{{ .Values.global.platform.path }}{{ .Values.platform.oidc.logoutPath }}'
+          - name: CLIENT_ID
+            value: {{ index .Values "loop" "platform" "oidc" "clientId" }}
+          - name: ROLE_MAPPINGS
+            value: {{ index .Values "loop" "platform" "oidc" "clientRoles" }}
+          - name: DIRECT_ACCESS_GRANTS
+            value: 'true'
+          - name: AUTHORIZATION_SERVICES
+            value: 'true'
+          - name: STANDARD_FLOW
+            value: 'false'
+          - name: CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                key: oauth-client-secret
+                name: '{{ tpl (index .Values "loop" "platform" "oidc" "clientSecret") . }}'
+        image: {{ include "devops-platform.image" (dict "componentName" "init" "context" .) }}
+        workingDir: /usr/local/bin
+        imagePullPolicy: {{ .Values.init.imagePullPolicy | default .Values.platform.imagePullPolicy }}
+{{- with .Values.platform.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 12 }}
+        {{- end }}
+        volumeMounts:
+{{- if index .Values "ibm-devops-prod" "ingress" "cert" "selfSigned" }}
+          - name: ingress
+            mountPath: /usr/share/pki/ingress
+{{- end }}
+          - name: keycloak-sh
+            mountPath: /usr/local/bin
+          - name: tmp
+            mountPath: /tmp
+{{- "\n" }}{{- "containers:" | nindent 6 }}
+        - name: {{ .Values.loop.name }}
+          {{- with .Values.loop.securityContext | default .Values.platform.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: {{ include "devops-platform.image" (dict "componentName" "loop" "context" .) }}
+          imagePullPolicy: {{ .Values.loop.imagePullPolicy | default .Values.platform.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.loop.service.port | default 8080}}
+              protocol: TCP
+          env:
+{{- template "devops-platform.container.product-env" . }}
+            - name: CLIENT_ID
+              value: {{ index .Values "loop" "platform" "oidc" "clientId" }}
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: oauth-client-secret
+                  name: '{{ tpl (index .Values "loop" "platform" "oidc" "clientSecret") . }}'
+            - name: INGRESS_DOMAIN
+              value: '{{ .Values.global.domain }}'
+            - name: AUTOMATION_BRAND
+              value: {{ .Values.global.platform.brand }}
+            - name: BASE_NAME
+              value: {{ .Values.global.platform.path | quote }}
+            - name: BASE_URL_TEST
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devops-prod" "ingress" "path" }}' 
+            - name: BASE_URL_PLAN
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "ingress" "path" }}'
+            - name: BASE_URL_CONTROL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "control" "ingress" "path" }}'               
+            - name: BASE_URL_MEASURE
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-ucv-prod" "ingress" "path" }}/valuestreams'  
+            - name: BASE_URL_RELEASE
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-ucv-prod" "ingress" "path" }}/releases'    
+            - name: BASE_URL_DEPLOY
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-ucd-prod" "ingress" "path" }}' 
+            - name: BASE_URL_CODE
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopscode" "ingress" "path" }}' 
+            - name: BASE_URL_KEYCLOAK
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "keycloak" "authServerPath" }}'
+            - name: REALM_NAME
+              value: {{ index .Values "ibm-devops-prod" "keycloak" "realm" }}   
+            - name: SPRING_PROFILES_ACTIVE
+              value: {{ .Values.loop.profile | default "prod" }}
+{{- if and (index .Values "platform" "plan") (eq (index .Values "platform" "plan" "enabled") true) }}              
+            - name: DASHBOARDS_URL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "dashboards" "basePath" }}/'
+            - name: DASHBOARDS_USERNAME
+              value: '{{ index .Values "ibm-devopsplan-prod" "opensearch" "username" }}'
+            - name: DASHBOARDS_PASSWORD
+              value: '{{ index .Values "ibm-devopsplan-prod" "opensearch" "password" }}'
+            - name: OPENSEARCH_URL
+              value: 'https://{{ .Release.Name }}-{{ index .Values "ibm-devopsplan-prod" "nameOverride" }}-opensearch:9200'
+{{- end }}              
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: postgresql-password
+                  name: '{{ include "devops-platform.componentFullname" (dict "componentName" "loop" "context" .) }}'
+            - name: AUTOMATION_PRODUCT_VELOCITY_PLUGIN_PLAN_IMAGE
+              value: {{ .Values.platform.velocity.plugins.plan.image }}
+            - name: AUTOMATION_PRODUCT_VELOCITY_PLUGIN_CONTROL_IMAGE
+              value: {{ .Values.platform.velocity.plugins.control.image }}
+            - name: AUTOMATION_PRODUCT_VELOCITY_PLUGIN_TEST_IMAGE
+              value: {{ .Values.platform.velocity.plugins.test.image }}
+            - name: AUTOMATION_PRODUCT_VELOCITY_PLUGIN_DEPLOY_IMAGE
+              value: {{ .Values.platform.velocity.plugins.deploy.image }}
+            - name: SPRING_APPLICATION_JSON
+              value: |
+                {
+                  "server": {
+                    "servlet": {
+                      "context-path" : "{{ .Values.loop.ingress.path }}"
+                    }
+                  },
+                  "spring": {
+                    "datasource": {
+                      "url": "jdbc:postgresql://{{ .Release.Name }}-postgresql:5432/loop",
+                      "username": "loop"
+                    },
+                    "security": {
+                      "oauth2": {
+                        "resourceserver": {
+                          "jwt": {
+                            "jwk-set-uri": "https://{{ .Values.global.domain }}{{ .Values.global.platform.oidc.jwksPath }}"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+          {{- with .Values.loop.livenessProbe | default .Values.platform.livenessProbe }}
+          {{- if .enabled }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- with (.Values.loop.readinessProbe) | default .Values.platform.readinessProbe }}
+          {{- if .enabled }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.loop.resources | nindent 12 }}
+{{- "volumeMounts:" | nindent 10 }}
+{{- if .Values.platform.plan.enabled }}
+            - name: control-secret
+              mountPath: "/etc/control"
+              readOnly: true
+{{- end }}
+{{- template "devops-platform.volumeMounts.trust-store" $ }}
+
+      {{- with .Values.loop.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.loop.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.loop.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+{{- if .Values.platform.plan.enabled }}
+        - name: control-secret
+          secret:
+            secretName: '{{ .Release.Name }}-control-passwords'
+{{- end }}
+{{- template "devops-platform.volumes.tmp-volume" $ }}
+{{- template "devops-platform.volumes.keycloak-init-sh" $ }}
+{{- template "devops-platform.volumes.trust-store" $ }}

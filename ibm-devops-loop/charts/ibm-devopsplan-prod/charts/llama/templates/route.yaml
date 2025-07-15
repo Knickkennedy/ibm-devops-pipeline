@@ -1,0 +1,27 @@
+{{- if .Values.enabled }}
+{{- if (eq .Values.ingress.type "route") }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ include "ollama.fullname" . }}
+  labels:
+    {{- include "ollama.labels" . | nindent 4 }}
+  namespace: {{ include "ollama.namespace" . }}
+spec:
+{{- if .Values.global.platform.enabled }}
+  host: {{ .Values.global.domain }}
+  path: {{ .Values.basePath  }}
+{{ else }}
+  host: {{ include "ollama.fullname" . }}.{{ .Values.global.domain }}
+{{- end }}
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  port:
+    targetPort: 11434
+  to:
+    kind: Service
+    name: {{ include "ollama.fullname" . }}
+  wildcardPolicy: None
+{{- end }}
+{{- end }}

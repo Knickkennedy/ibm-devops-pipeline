@@ -1,0 +1,139 @@
+#
+# Licensed Materials - Property of HCL
+# (C) Copyright HCL Technologies Ltd. 2024, 2025.  All Rights Reserved.
+# Note to U.S. Government Users Restricted Rights:
+# Use, duplication or disclosure restricted by GSA ADP Schedule Contract
+#
+#
+# For all deployments:
+# * adjust image registry values as needed
+# * add imagePullSecrets as needed
+# * Set a passwordSeed value below (a blank value or "" does NOT work)
+# * Update the SMTP settings below if they won't work for you (doesn't
+#   really impede installation, but you just won't have email working)
+# * set global.domain to match what your cluster will use for the namespace
+#
+# To install with k3s+emissary:
+# * Install ibm-devops-prod chart once, into its namespace.  Copy its
+#   ingress certificate to a file:
+#   kubectl get secret ingress -n devops-prod-namespace -ojson >secret.json
+# * edit the secret to remove the .metadata.creationTimestamp,
+#   .metadata.namespace, .metadata.resourceVersion, .metadata.uid, and
+#   .metadata.annotations values
+# * Create an ingress certificate secret in your selected namespace
+#   kubectl apply -n your-namespace -f edited-secret.json
+# * enable the setting of global.ibmCertSecretName below
+# * set ingress.host.enabled and emissary.host.enabled: true below
+# * helm upgrade --install -n your-namespace your-appname chartdir --values chartdir/values-k3s.yaml --values chartdir/values-standalone.yaml
+#
+# For OpenShift:
+# * uncomment the port assignments below
+# * set ingress.host.enabled and emissary.host.enabled: false below
+# * comment out the ibmCertSecretName below
+# * helm upgrade --install -n your-namespace your-appname chartdir --values chartdir/values-openshift.yaml --values chartdir/values-standalone.yaml
+#
+#
+# The pods take a few minutes to stabilize: the init strategy for Gitea
+# is to fail if other pods aren't ready and then have k8s restart the init step.
+#
+# SSH access to the git server requires an ingress setting, see the
+# displayed notes for directions (different for OpenShift and
+# k3s/emissary)
+
+## @section Persistence
+#
+## @param persistence.accessModes AccessMode for persistence
+persistence:
+  accessModes:
+  - ReadWriteOnce
+
+## @param replicaCount number of replicas for the deployment
+replicaCount: 1
+
+platform:
+  oidc: null
+  enabled: false
+image:
+  pullPolicy: Always
+
+## @param initContainers.resources.limits initContainers.limits Kubernetes resource limits for init containers
+## @param initContainers.resources.requests.cpu initContainers.requests.cpu Kubernetes cpu resource limits for init containers
+## @param initContainers.resources.requests.memory initContainers.requests.memory Kubernetes memory resource limits for init containers
+initContainers:
+  resources:
+    limits: {}
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+## @section deployment
+#
+## @param resources Kubernetes resources
+resources:
+  {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+
+global:
+  imagePullSecrets: []
+  imageRegistry: "cp.icr.io/cp"
+  domain: appname.10.1.2.3.nip.io
+  # domain: appname.apps-crc.testing
+  platform:
+    enabled: false
+    smtp:
+      sender: from_address@example.com
+      host: smtp.example.com
+      port: 25
+      smtps: false
+      startTLS: false
+      username: "" # used only for smtps or startTLS; leave blank if not required
+      password: "" # used only for smtps or startTLS; leave blank if not required
+  ibmCertSecretName: ingress
+
+ssh:
+  minimum_key_sizes: {}
+
+emissary:
+  host:
+    # K3s: set this to true
+    # OpenShift: set this to false
+    enabled: true
+ingress:
+  host:
+    # K3s: set this to true
+    # OpenShift: set this to false
+    enabled: true
+
+# OpenShift: enable this port setting
+# service:
+#   ssh:
+#     nodePort: 30322
+
+gitea:
+  config:
+    service:
+      PLATFORM_ENABLED: false
+    webhook:
+      ALLOWED_HOST_LIST: "*"
+    indexer:
+      ISSUE_INDEXER_TYPE: bleve
+  oauth:
+    []
+  # OpenShift: enable this port setting
+  # config:
+  #   server:
+  #     SSH_PORT: 30322
+
+# Generate a password seed for use with the Gitea setup,
+# using "pwgen -s 16 1" and put it into this value:
+passwordSeed: ""
+
+postgresql:
+  nameOverride: controldb
+  enabled: true
+
+networkPolicy:
+  enabled: false

@@ -1,0 +1,56 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "devops-platform.componentFullname" (dict "componentName" "keycloak-init" "context" .) }}
+  labels:
+      {{- include "devops-platform.labels" (dict "componentName" "keycloak-init" "context" .) | nindent 6 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: '30'
+spec:
+  template:
+    metadata:
+    {{- with (mergeOverwrite (deepCopy .Values.platform.deploymentAnnotations) (index .Values "keycloak-init" "deploymentAnnotations")) }}
+      annotations:
+        {{- range $key, $value := . }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+      {{- end }}
+      labels:
+        {{- include "devops-platform.labels" (dict "componentName" "keycloak-init" "context" .) | nindent 8 }}
+        {{- with (mergeOverwrite (deepCopy .Values.platform.podLabels) (index .Values "keycloak-init" "podLabels")) }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "devops-platform.serviceAccountName" (dict "componentName" "keycloak-init" "context" .) }}
+      {{- with (mergeOverwrite (deepCopy .Values.platform.podAnnotations) (index .Values "keycloak-init" "podAnnotations")) }}
+      annotations:
+        {{- range $key, $value := . }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+      {{- end }}
+      securityContext:
+        {{- with index .Values "keycloak-init" "podSecurityContext" | default .Values.platform.podSecurityContext }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: keycloak-update-theme
+          command:
+          - sh
+          - -ec
+          - |
+            ./wait.sh $KEYCLOAK_URL/realms/$REALM_NAME/
+            ./update-theme.sh
+          env:
+{{ include "devops-platform.container.keycloak-init-sh-env" $ | nindent 12 }}
+            - name: REALM_THEME
+              value: {{ .Values.keycloak.realmTheme }}
+{{ include "devops-platform.container.keycloak-init-sh-trailer" $ | nindent 10 }}
+      restartPolicy: Never
+      volumes:
+{{- template "devops-platform.volumes.keycloak-init-sh" $ }}
+{{- template "devops-platform.volumes.trust-store" $ }}

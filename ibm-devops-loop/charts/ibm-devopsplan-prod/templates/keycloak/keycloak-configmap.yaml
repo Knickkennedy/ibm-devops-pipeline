@@ -1,0 +1,21 @@
+{{- if .Values.global.platform.enabled }}
+{{- if .Values.keycloak.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ccm.fullname" . }}-keycloak-configmap
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+data:
+  keycloak.json: |
+    {
+      "realm": "{{ .Values.keycloak.realmName }}",
+      "auth-server-url": "https://{{ .Values.global.domain }}{{ .Values.keycloak.authServerPath }}/",
+      "ssl-required": "external",
+      "resource": "{{ .Values.platform.oidc.clientId }}",
+      "public-client": true,
+      "confidential-port": 0,
+      "disable-trust-manager" : true
+    }
+{{- end -}}
+{{- end }}

@@ -1,0 +1,158 @@
+CHART NAME: {{ .Chart.Name }}
+CHART VERSION: {{ .Chart.Version }}
+APP VERSION: {{ .Chart.AppVersion }}
+
+** Please be patient while the chart is being deployed **
+
+{{- if .Values.devopsplan.service }}
+- Get the {{ include "ccm.fullname" . }} URL by running these commands:
+
+{{- if .Values.ingress.enabled }}
+{{- if .Values.global.domain }}
+      https://{{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}
+{{- if not .Values.global.platform.enabled }}
+{{- if and .Values.keycloak.enabled (.Values.keycloak.service.enabled) }}
+
+   In order to Sign in, You need to pass the trust keycloak certificate using keycloak URL:
+      https://{{ include "ccm.fullname" . }}-keycloak{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}
+{{- end }}
+{{- end }}
+{{- else }}
+{{- if .Values.service.ipAddress }}
+   the URL is https://{{ .Values.service.ipAddress }}:{{ $.Values.service.exposePort }}
+{{- else if .Values.keycloak.service.ipAddress }}
+   the URL is https://{{ .Values.keycloak.service.ipAddress }}:{{ $.Values.service.exposePort }}
+{{- else }}
+   the URL is https://[VirtualMachine_IP]:{{ $.Values.service.exposePort }}
+{{- end }}
+{{- end }}
+
+{{- else if contains "NodePort" .Values.service.type }}
+
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ template "ccm.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "{{ include "ccm.fullname" . }} URL:            https://$NODE_IP:$NODE_PORT"
+
+{{- else if contains "LoadBalancer" .Values.service.type }}
+
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+        Watch the status with: 'kubectl get svc --namespace {{ .Release.Namespace }} -w {{ template "ccm.fullname" . }}'
+
+  export LOAD_BALANCER_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ template "ccm.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "{{ include "ccm.fullname" . }} URL:            https://$NODE_IP:$LOAD_BALANCER_PORT"
+
+{{- else if contains "ClusterIP" .Values.service.type }}
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "ccm.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  kubectl port-forward $POD_NAME 8190:8190
+  echo "{{ include "ccm.fullname" . }} URL:            https://127.0.0.1:8190"
+
+{{- end }}
+
+  Note:  It takes a few minutes for all pods to be ready and you can access {{ include "ccm.fullname" . }} URL.
+        Watch the pods status with: 'kubectl get pods --namespace {{ .Release.Namespace }} -w '
+
+
+{{- if .Values.opensearch.service }}
+
+- Opensearch Dashboard:
+    the username is {{ .Values.opensearch.username }} and the password retrieved with:
+    kubectl get secret --namespace {{ .Release.Namespace }} {{ include "ccm.fullname" . }}-opensearch -o jsonpath="{.data.opensearch-password}" | base64 -d; echo
+
+{{- end }}
+
+{{- if not .Values.global.platform.enabled }}
+{{- if .Values.keycloak.enabled }}
+
+- Keycloak:
+{{- if .Values.keycloaksrv.enabled }}
+    the username is {{ .Values.keycloaksrv.auth.adminUser }} and the password retrieved with:
+    kubectl get secret  --namespace {{ .Release.Namespace }} {{ .Release.Name }}-keycloaksrv -o jsonpath={.data.admin-password} | base64 -d; echo
+{{- else }}
+    the username is {{ .Values.keycloak.username }} and the password retrieved with:
+    kubectl get secret --namespace {{ .Release.Namespace }} {{ include "ccm.fullname" . }}-keycloak -o jsonpath="{.data.keycloak-password}" | base64 -d; echo
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{- if .Values.postgresql.enabled }}
+
+- PostgreSQL:
+    the username is postgres and the password retrieved with:
+    kubectl get secret --namespace {{ .Release.Namespace }} {{ include "plan.fullname" . }}-postgresql -o jsonpath="{.data.tenant-datastore-password}" | base64 -d; echo
+
+{{- end }}
+
+{{- if not .Values.global.platform.enabled }}
+{{- if (and (or (eq .Values.ingress.type "mapping") (eq .Values.ingress.type "route")) (eq .Values.control.enabled true)) }}
+
+- Control:
+{{- if eq .Values.ingress.type "route" }}
+   the URL is https://{{ .Values.global.domain }}/control
+{{- else if eq .Values.ingress.type "mapping" }}
+   the URL is https://{{ .Release.Name }}-control{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}/control
+{{- end }}
+   the administrator username is {{ .Values.control.gitea.admin.username }} and the password retrieved with:
+   kubectl get secret -n {{ .Release.Namespace }} {{ .Release.Name }}-control-passwords -o jsonpath="{.data.password}" | base64 --decode; echo
+
+  Control PostgreSQL:
+{{- if .Values.control.postgresql.username }}
+    the username is {{ .Values.control.postgresql.username }} and the password retrieved with:
+{{- else }}
+    the username is control and the password retrieved with:
+{{- end }}
+    kubectl get secret --namespace {{ .Release.Namespace }} {{ .Release.Name }}-control-postgres-password -o jsonpath="{.data.postgresql-password}" | base64 -d; echo
+
+{{- end }}
+{{- end }}
+
+{{- if .Values.llama.enabled }}
+
+- Llama:
+    the URL is http://{{ .Release.Name }}-llama:11434
+{{- end }}
+
+{{- else if .Values.backupRestore.enabled }}
+
+- MinIo URL:
+{{- if .Values.ingress.enabled }}
+{{- if .Values.global.domain }}
+      http://{{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}
+{{- if not .Values.global.platform.enabled }}
+{{- if and .Values.keycloak.enabled (.Values.keycloak.service.enabled) }}
+
+   In order to Sign in, You need to pass the trust keycloak certificate using keycloak URL:
+      http://{{ include "ccm.fullname" . }}-keycloak{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}
+{{- end }}
+{{- end }}
+{{- else }}
+      http://[VirtualMachine_IP]:{{ $.Values.minio.service.nodePorts.console }}
+{{- end }}
+
+{{- else if contains "NodePort" .Values.service.type }}
+
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ .Release.Name }}-minio)
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "{{ include "ccm.fullname" . }} URL:            http://$NODE_IP:$NODE_PORT"
+
+{{- else if contains "LoadBalancer" .Values.service.type }}
+
+  NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+        Watch the status with: 'kubectl get svc --namespace {{ .Release.Namespace }} -w {{ template "ccm.fullname" . }}'
+
+  export LOAD_BALANCER_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ .Release.Name }}-minio)
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo "{{ include "ccm.fullname" . }} URL:            http//$NODE_IP:$LOAD_BALANCER_PORT"
+
+{{- else if contains "ClusterIP" .Values.service.type }}
+  export POD_NAME=$(kubectl get pods --namespace {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "ccm.name" . }},app.kubernetes.io/instance={{ .Release.Name }}" -o jsonpath="{.items[0].metadata.name}")
+  kubectl port-forward $POD_NAME 9001:9001
+  echo "{{ include "ccm.fullname" . }} URL:            http://127.0.0.1:9001"
+
+{{- end }}
+      the username is {{ .Values.minio.auth.rootUser }} and the password is {{ .Values.minio.auth.rootPassword }}
+
+Note: It takes a few minutes for all pods to be ready and you can access ibm-devopsplan URL.
+      Watch the pods status with: 'kubectl get pods --namespace {{ .Release.Namespace }} -w '
+      Check the README file for the Backup and Restore scenarios.
+{{- end }}

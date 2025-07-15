@@ -1,0 +1,29 @@
+ingress:
+  enabled: true
+  type: mapping
+
+analytics:
+  exposePort: ""
+  type: ClusterIP
+  
+postgresql:
+  service:
+    exposePort: ""
+    type: ClusterIP
+
+keycloaksrv:
+  service:
+    type: ClusterIP
+    nodePorts:
+      http: ""
+      https: ""
+
+nginx:
+  exposePort: ""
+  type: ClusterIP
+
+service:
+  exposePort: ""
+  type: ClusterIP
+
+

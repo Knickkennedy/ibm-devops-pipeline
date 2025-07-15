@@ -1,0 +1,68 @@
+{{- if .Values.global.sofySolution }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: '{{ .Release.Name }}-sofy-config'
+  labels:
+    app.kubernetes.io/name: '{{ .Release.Name }}-{{ .Chart.Name }}'
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+data:
+  sofy-config.json: |-
+    {
+        "name": "{{ .Chart.Name }}",
+        "description": "{{ .Chart.Description }}",
+        "version": "{{ .Chart.Version }}",
+        "displayName": "HCL DevOps Plan",
+        "buildOptions": {
+          "dev": {
+            "useEmissary": true
+          }
+        },
+        "links":[
+            {
+                "displayName": "Home Page",
+                "type": "ui",
+                "static": false,
+                "path": "/",
+                "subdomain": "hcl-devopsplan"
+            },
+            {
+                "displayName": "REST API Root",
+                "type": "apiroot",
+                "static": false,
+                "subdomain": "hcl-devopsplan",
+                "path": "/ccmweb/rest/"
+            },
+            {
+                "displayName": "REST APIs",
+                "type": "openapiui",
+                "static": false,
+                "subdomain": "hcl-devopsplan",
+                "path": "/swagger-ui/index.html"
+            }
+        ],
+        "services": {
+            "{{ include "ccm.fullname" . }}": {
+                "disablePublicRoute" : "{{ .Values.disablePublicRoute }}",
+                "disableAccessControl" : "{{ .Values.disableAccessControl }}",
+                "additionalLogFiles" : {
+                    "hcl-devopsplan": {
+                        "ccmRestAppLog": "{{ include "ccm.app-folder" . }}/logs/ccm-rest-app.log"
+                    }
+                }
+            },
+            "{{ include "ccm.fullname" . }}-analytics": {
+              "disablePublicRoute" : "true"
+            },
+            "{{ include "ccm.fullname" . }}-nginx": {
+              "disablePublicRoute" : "true"
+            },
+            "{{ include "ccm.fullname" . }}-keycloak": {
+              "disablePublicRoute" : "true"
+            },
+            "{{ include "ccm.fullname" . }}-postgresql": {
+              "disablePublicRoute" : "true"
+            }
+        }
+    }
+{{- end }}

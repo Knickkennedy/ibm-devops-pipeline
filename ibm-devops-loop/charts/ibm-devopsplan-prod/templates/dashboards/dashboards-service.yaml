@@ -1,0 +1,19 @@
+{{- if .Values.dashboards.service -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ccm.fullname" . }}-dashboards
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  ports:
+    - name: http
+      port: 5601
+      protocol: TCP
+      targetPort: 5601
+  selector:
+    app.kubernetes.io/name: {{ include "ccm.name" . }}-dashboards
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}

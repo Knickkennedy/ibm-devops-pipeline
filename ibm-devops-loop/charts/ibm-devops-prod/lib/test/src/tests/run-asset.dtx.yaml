@@ -1,0 +1,43 @@
+configuration:
+  vars:
+    REPO_BRANCH: master
+    DELETE_PROJECT: 'false'
+    DEPLOYMENT_URL: {}
+    DEPLOYMENT_PATH: {}
+    _DEPLOYMENT_REFRESH_TOKEN: {}
+steps:
+  - run: ../modules/import-repo.dtx.yaml
+  - run: ../modules/find-asset.dtx.yaml
+  - send:
+      note: run asset
+      transport: ../auth.dtt.yaml
+      url: ${DEPLOYMENT_URL}${PROJECT_URL}/executions/
+      request:
+        fields:
+          - headers/content-type:
+              - val: application/json
+          - content:
+              - val: '{"environment":"local","offlineToken":"${_DEPLOYMENT_REFRESH_TOKEN}","testAsset":{"assetId":"${ASSET_ID}","revision":"${REPO_BRANCH}"}}'
+      response:
+        includes:
+          - run-asset.dtm.yaml#RESPONSE
+        fields:
+          - headers/location:
+              - var: RUN_URL
+  - log: status was ${RUN_STATUS}
+  - do:
+      note: wait for run to complete
+      steps:
+        - pause: 1s
+        - send:
+            note: update run status
+            transport: ../auth.dtt.yaml
+            url: ${DEPLOYMENT_URL}${RUN_URL}
+            response:
+              includes:
+                - run-asset.dtm.yaml#RESPONSE
+        - log: status was ${RUN_STATUS}
+      while: "['IN_TRANSITION','RUNNING'].includes(RUN_STATUS)"
+  - verify:
+      - |-
+        'COMPLETE' === RUN_STATUS

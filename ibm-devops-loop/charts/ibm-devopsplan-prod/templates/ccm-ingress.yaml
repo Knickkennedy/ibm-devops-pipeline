@@ -1,0 +1,113 @@
+{{- if .Values.devopsplan.service }}
+{{- $ingress := .Values.ingress -}}
+{{- if $ingress.enabled -}}
+{{- if (eq .Values.ingress.type "nginx") }}
+{{- $fullName := include "ccm.fullname" . -}}
+{{- $planFullName := include "plan.fullname" . -}}
+{{- if semverCompare ">=1.19-0" .Capabilities.KubeVersion.GitVersion -}}
+apiVersion: networking.k8s.io/v1
+{{- else if semverCompare ">=1.14-0" .Capabilities.KubeVersion.GitVersion -}}
+apiVersion: networking.k8s.io/v1beta1
+{{- else -}}
+apiVersion: extensions/v1beta1
+{{- end }}
+kind: Ingress
+metadata:
+  name: {{ $fullName }}
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+{{- with $ingress.annotations }}
+  annotations:
+{{ toYaml . | indent 4 }}
+{{- end }}
+spec:
+{{- if $ingress.tls }}
+  tls:
+  {{- range $ingress.tls }}
+    - hosts:
+      {{- range .hosts }}
+        - {{ . | quote }}
+      {{- end }}
+      secretName: {{ .secretName }}
+  {{- end }}
+{{- end }}
+
+  rules:
+  {{- range $ingress.hosts }}
+    - host: {{ . | quote  }}
+      http:
+        paths:
+          - path: {{ $ingress.path }}
+            {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
+            pathType: ImplementationSpecific
+            {{- end }}
+            backend:
+              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
+              service:
+                name: {{ $fullName }}
+                port:
+                  number: {{ $ingress.servicePort }}
+              {{- else }}
+              serviceName: {{ $fullName }}
+              servicePort: {{ $ingress.servicePort }}
+              {{- end }}
+          - path: {{ $ingress.path }}
+            {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
+            pathType: ImplementationSpecific
+            {{- end }}
+            backend:
+              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
+              service:
+                name: {{ $fullName }}-nginx
+                port:
+                  number: 5602
+              {{- else }}
+              serviceName: {{ $fullName }}-nginx
+              servicePort: 5602
+              {{- end }}
+          - path: {{ $ingress.path }}
+            {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
+            pathType: ImplementationSpecific
+            {{- end }}
+            backend:
+              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
+              service:
+                name: {{ $fullName }}-keycloak
+                port:
+                  number: 8443
+              {{- else }}
+              serviceName: {{ $fullName }}-keycloak
+              servicePort: 8443
+              {{- end }}
+          - path: {{ $ingress.path }}
+            {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
+            pathType: ImplementationSpecific
+            {{- end }}
+            backend:
+              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
+              service:
+                name: {{ $fullName }}-analytics
+                port:
+                  number: 8290
+              {{- else }}
+              serviceName: {{ $fullName }}-analytics
+              servicePort: 8290
+              {{- end }}
+          - path: {{ $ingress.path }}
+            {{- if semverCompare ">=1.18-0" $.Capabilities.KubeVersion.GitVersion }}
+            pathType: ImplementationSpecific
+            {{- end }}
+            backend:
+              {{- if semverCompare ">=1.19-0" $.Capabilities.KubeVersion.GitVersion }}
+              service:
+                name: {{ $planFullName }}-postgresql
+                port:
+                  number: 5432
+              {{- else }}
+              serviceName: {{ $planFullName }}-postgresql
+              servicePort: 5432
+              {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -84,7 +84,9 @@ spec:
               helm upgrade --wait --timeout 600s --install ${MONGO_HELM_RELEASE_NAME} --version ${MONGO_CHART_VERSION} ${MONGO_INSTALL_OPTIONS} --namespace=${MONGO_NAMESPACE} --create-namespace bitnami/mongodb 
               MONGODB_ROOT_PASSWORD=$(oc get secret --namespace ${MONGO_NAMESPACE} ${MONGO_HELM_RELEASE_NAME}-mongodb -o jsonpath="{.data.mongodb-root-password}" | base64 -d)
               MONGO_URL="mongodb://root:${MONGODB_ROOT_PASSWORD}@${MONGO_HELM_RELEASE_NAME}-mongodb:27017/admin"
-
+              echo "MongoDB URL: ${MONGO_URL}"
+              echo "MongoDB root password: ${MONGODB_ROOT_PASSWORD}"
+              oc create secret generic mongodb-url-secret --namespace $(params.namespace) --from-literal=password="${MONGO_URL}"
     - name: deploy-ibm-ucv-helm-chart
       runAfter:
         - deploy-mongodb
@@ -136,7 +138,8 @@ spec:
               --set global.platform.smtp.startTLS=${EMAIL_SERVER_STARTTLS} \
               --set global.platform.smtp.smtps=${EMAIL_SERVER_SMTPS} \
               --set global.ibmCertSecretName=${TLS_CERT_SECRET_NAME} \
-              --set license=${ACCEPT_LICENSE}
+              --set license=${ACCEPT_LICENSE} \
+              --set ibm-devopsplan-prod.persistence.ccm.storageClass=$(params.file-storage-class)
               "
 
               LICENSE_SERVER="$(params.license-server)"
@@ -156,4 +159,4 @@ spec:
               fi
 
               HELM_OPTIONS="${HELM_OPTIONS} ${ADDITIONAL_HELM_OPTIONS}"
-              helm upgrade --wait --timeout 600s --install ${HELM_NAME} ${ROOT_DIR} --version "$(params.loop-version)" ${HELM_OPTIONS} -n $(params.namespace) -f ${ROOT_DIR}/values-openshift.yaml
+              helm upgrade --wait --timeout 6000s --install ${HELM_NAME} ${ROOT_DIR} --version "$(params.loop-version)" ${HELM_OPTIONS} -n $(params.namespace) -f ${ROOT_DIR}/values-openshift.yaml

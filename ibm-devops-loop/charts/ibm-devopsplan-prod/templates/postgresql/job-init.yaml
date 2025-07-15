@@ -1,0 +1,161 @@
+{{- if not .Values.global.platform.enabled }}
+{{- if (and (or (eq .Values.ingress.type "mapping") (eq .Values.ingress.type "route")) (eq .Values.control.enabled true) (not .Values.control.postgresql.host)) -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "plan.fullname" . }}-postgresql-init
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade,post-rollback
+    helm.sh/hook-delete-policy: hook-succeeded,before-hook-creation
+    helm.sh/hook-weight: '10'
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "plan.fullname" . }}-postgresql-init
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/managed-by: {{ .Release.Service }}
+      annotations:
+  {{- if eq "IBM" .Values.global.devopsPlanBrand }}
+        productName: {{ .Values.annotations.ibm.productName }}
+        productID: {{ .Values.annotations.ibm.productID }}
+        productVersion: {{ .Values.annotations.ibm.productVersion }}
+        productMetric: {{ .Values.annotations.ibm.productMetric }}
+        productChargedContainers: {{ .Values.annotations.ibm.productChargedContainers }}
+  {{ else }}
+        productName: {{ .Values.annotations.hcl.productName }}
+        productVersion: {{ .Values.annotations.hcl.productVersion }}
+  {{- end }}
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: {{ .Values.postgresql.nodeAffinity.key }}
+                operator: In
+                values:
+                - {{ .Values.postgresql.nodeAffinity.values }}
+  {{- if .Values.postgresql.topologySpreadConstraints.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: {{ .Values.postgresql.topologySpreadConstraints.maxSkew }}
+          topologyKey: {{ .Values.postgresql.topologySpreadConstraints.topologyKey }}
+          whenUnsatisfiable: {{ .Values.postgresql.topologySpreadConstraints.whenUnsatisfiable }}
+          labelSelector:
+            matchLabelKeys:
+              app.kubernetes.io/name: {{ include "ccm.name" . }}-postgresql
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/managed-by: {{ .Release.Service }}
+  {{- end }}
+
+  {{- if or (.Values.global.imagePullSecret) (.Values.global.imagePullSecrets) }}
+      imagePullSecrets:
+  {{- if .Values.global.imagePullSecret }}
+      - name: {{ .Values.global.imagePullSecret }}
+  {{- end }}
+      {{- range .Values.global.imagePullSecrets }}
+      - name: {{ . }}
+      {{- end }}
+  {{- end }}
+      initContainers:
+      - command:
+        - sh
+        - -c
+        - |
+          until pg_isready -U {{ "postgres" }} -h {{ include "plan.fullname" . }}-postgresql \
+            && echo "SELECT FROM pg_database WHERE datname = '{{ "postgres" }}'" |
+               psql -h {{ include "plan.fullname" . }}-postgresql -U {{ "postgres" }} |
+               grep '1 row'
+          do
+            sleep 15
+          done
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "plan.fullname" . }}-postgresql
+              key: spring-datastore-password
+      {{- if .Values.image.repoDigests }}
+        image: "{{ include "ccm.ccmImageRepo" . }}/{{ .Values.postgresql.repository }}@{{ .Values.postgresql.tag }}"
+      {{- else }}
+        image: "{{ include "ccm.ccmImageRepo" . }}/{{ .Values.postgresql.repository }}:{{ .Values.postgresql.tag }}"
+      {{- end }}
+        imagePullPolicy: {{ .Values.postgresql.pullPolicy }}
+        name: pg-isready
+    {{- if .Values.postgresql.initResources }}
+        resources: {{- toYaml .Values.postgresql.initResources | nindent 10 }}
+    {{- end }}
+
+        securityContext:
+          runAsNonRoot: true
+    {{- if not (.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
+          runAsUser: {{ .Values.securityContext.runAsUser }}
+    {{- end }}
+          privileged: false
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      containers:
+      - command:
+        - /bin/create-users.sh
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "plan.fullname" . }}-postgresql
+              key: spring-datastore-password
+        - name: PGUSER
+          value: postgres
+      {{- if .Values.image.repoDigests }}
+        image: "{{ include "ccm.ccmImageRepo" . }}/{{ .Values.postgresql.repository }}@{{ .Values.postgresql.tag }}"
+      {{- else }}
+        image: "{{ include "ccm.ccmImageRepo" . }}/{{ .Values.postgresql.repository }}:{{ .Values.postgresql.tag }}"
+      {{- end }}
+        imagePullPolicy: IfNotPresent
+        name: main
+{{- if .Values.postgresql.jobResources }}
+        resources: {{- toYaml .Values.postgresql.jobResources | nindent 10 }}
+{{- end }}
+        securityContext:
+          privileged: false
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: scripts
+          mountPath: /bin/create-users.sh
+          subPath: create-users.sh
+{{- range $key, $value := .Values.postgresql.dbs }}
+{{- if not $value.owner }}
+        - name: '{{ $key }}-pwd'
+          mountPath: /pwds/{{ $key }}
+{{- end }}
+{{- end }}
+      restartPolicy: Never
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+      securityContext:
+        runAsNonRoot: true
+  {{- if not (.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        fsGroup: {{ .Values.securityContext.fsGroup }}
+  {{- end }}
+      volumes:
+      - name: scripts
+        configMap:
+          defaultMode: 365
+          name: '{{ include "ccm.fullname" . }}-postgresql-init-sh'
+{{- range $key, $value := .Values.postgresql.dbs }}
+      - name: {{ $key }}-pwd
+        secret:
+          secretName: {{ tpl (default (print "{{ .Release.Name }}-" $key) $value.secret) $ }}
+{{- end }}
+{{- end }}
+{{- end }}

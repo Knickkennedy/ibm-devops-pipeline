@@ -1,0 +1,134 @@
+access:
+  key: replace-with-valid-access-key
+url:
+  protocol: https
+  domain: custom-hostname
+  port: '443'
+rabbitmq:
+  nodePort: null
+  managerPort: 15672
+  erlangCookie: 128ad9b8-3d9f-11e8-b467-0ed5f89f718c
+loglevel: INFO
+ingress:
+  path: /
+  className: nginx
+resources:
+  limits:
+    memory:
+      default: 2Gi
+    cpu:
+      default: 1
+    storage:
+      default: 1Gi
+  requests:
+    memory:
+      default: 512Mi
+    cpu:
+      default: 50m
+    storage:
+      default: 128Mi
+runAsUser: 1000162043
+secrets:
+  rabbit: velocity-rabbitmq
+  tls: velocity-tls
+  jwt: velocity-jwt
+  tokens: velocity-tokens
+  database: velocity-database
+  imagePull: velocity-image-secret
+  initialAdminPassword: velocity-initial-admin-password
+  montiApm: velocity-monti-apm
+  opensearchAdminPwSecret: velocity-opensearch-admin-pw
+randomInitialAdminPassword: true
+serviceAccountName: velocity-service-account
+pluginIndexUrl: 'https://raw.githubusercontent.com/UrbanCode/velocity-plugins-index/master'
+timeouts:
+  readiness:
+    initialDelaySeconds:
+      default: 120
+    timeoutSeconds:
+      default: 10
+    periodSeconds:
+      default: 30
+    failureThreshold:
+      default: 5
+  liveness:
+    initialDelaySeconds:
+      default: 120
+    timeoutSeconds:
+      default: 10
+    periodSeconds:
+      default: 30
+      background-processor: 60
+    failureThreshold:
+      default: 3
+      background-processor: 10
+openTelemetryEnabled: disabled
+openTelemetryLogLevel: INFO
+opentelemetry-collector:
+  image:
+    repository: otel/opentelemetry-collector-contrib
+    tag: 0.95.0
+  fullnameOverride: velocity-opentelemetry-collector
+  mode: deployment
+  initContainers:
+    - name: init-data-prepper
+      image: registry.access.redhat.com/ubi9/ubi-minimal
+      imagePullPolicy: IfNotPresent
+      command:
+        - sh
+        - '-c'
+        - 'until [ "$(curl -s -o /dev/null -w "%{http_code}" http://velocity-data-prepper:4900/list)" == "200" ]; do echo waiting for data-prepper; sleep 5; done;'
+  config:
+    receivers:
+      jaeger: null
+      prometheus: null
+      zipkin: null
+    exporters:
+      otlp/traces:
+        endpoint: 'velocity-data-prepper:21890'
+        tls:
+          insecure: true
+      otlp/metrics:
+        endpoint: 'velocity-data-prepper:21891'
+        tls:
+          insecure: true
+      otlp/logs:
+        endpoint: 'velocity-data-prepper:21892'
+        tls:
+          insecure: true
+    service:
+      pipelines:
+        traces:
+          receivers:
+            - otlp
+          exporters:
+            - otlp/traces
+        metrics:
+          receivers:
+            - otlp
+          exporters:
+            - otlp/metrics
+        logs:
+          receivers:
+            - otlp
+          exporters:
+            - otlp/logs
+opensearch:
+  image:
+    repository: opensearchproject/opensearch
+    tag: 2.13.0
+  clusterName: velocity-opensearch-cluster
+  masterService: velocity-opensearch-cluster-master
+  singleNode: true
+  envFrom:
+    - secretRef:
+        name: velocity-opensearch-admin-pw
+opensearchDataPrepperReplicas: 1
+marketingVersion: '2025.06'
+imageRegistry:
+  velocityRegistry: cp.icr.io/cp/
+  velocityPath: ibm-ucv-
+  docker: docker.io/
+  redhat: registry.access.redhat.com/
+ldapConnectTimeout: '5000'
+license: accept

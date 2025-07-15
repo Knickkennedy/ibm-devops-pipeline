@@ -1,0 +1,993 @@
+# Default values
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+devopsplan:
+  service: true
+## Number of instances to run
+replicaCount: 1
+## Global settings
+global:
+  imageRegistry: cp.icr.io/cp
+  imagePullSecret: ""
+  imagePullSecrets: []
+  sofySolution: false
+  domain: ""
+  devopsPlanBrand: "IBM"
+  licenseMetric: false
+  licenseIntervalTime: ""
+  passwordSeed: ""
+  fullnameOverride: ""
+  persistence:
+    rwoStorageClass: ""
+    rwxStorageClass: ""
+  plan:
+    enabled: true
+  platform:
+    enabled: false
+    path: ''
+    embedPath: ''
+    oidc:
+      issuerPath: ""
+      authorizationPath: ""
+      tokenPath: ""
+      userinfoPath: ""
+      introspectionPath: ""
+      jwksPath: ""
+      logoutPath: ""
+      ## smtp settings
+    smtp:
+      sender: ""
+      host: ""
+      port: ""
+      username: ""
+      password: ""
+      startTLS: false
+      smtps: false
+## Platform Configuration
+platform:
+  oidc:
+    clientId: ""
+    clientSecret: ""
+  opensearch:
+    oidc:
+      clientId: ""
+      clientSecret: ""
+      rolesClaim: ""
+      enableIDToken: false
+  dataPrepper:
+    enabled: true
+## Image settings
+image:
+  repository: devops-plan/devopsplan
+  tag: sha256:802a8a61667c20a049b93f55d90d63f8add8153536e4f571c0079766d51dc9f0
+  pullPolicy: IfNotPresent
+  secret: ""
+  repoDigests: true
+## devopsplan hostname
+hostname: devopsplan
+## Time zone setting
+timeZone: EST5EDT
+## Server qualified URL path
+serverQualifiedUrlPath: ""
+## PriorityClass name and value
+priorityClassName: devopsplan-priority
+priorityClassValue: 1000000
+## Spring Data REST Database Properties
+spring:
+  datastore:
+    enabled: true
+    url: ""
+    username: "postgres"
+    password: ""
+  jpaHibernate:
+    ddlAuto: "update"
+  mail:
+    host: ""
+    port: ""
+    username: ""
+    password: ""
+## Tenant Database Properties
+tenant:
+  datastore:
+    enabled: true
+    vendor: "PostgreSQL"
+    server: ""
+    dbname: "postgres"
+    username: "postgres"
+    password: ""
+    # Store the token and token info in the database, not file system.
+    token: true
+    # Specify a secret key (used for encrypting data in the database and in transit).
+    secret: ""
+  registration:
+    code: "NONE"
+  email:
+    fromaddress: ""
+  corelogontokenclient:
+    usesecure: false
+## Deployment properties settings
+deployment:
+  mode: ""
+  userpass: ""
+## Database settings
+db:
+  service: false
+## SSO configuration.
+sso:
+  enabled: false
+## Mapping Database hostname to Database IP address
+## If you set Database server name as Database hostname, then the mapping requires.
+## Uncomment the following lines and add Database IP and Database hostname.
+#hostAliases:
+#  - ip: ""
+#    hostnames:
+#    - ""
+
+## logging and trace level settings (Set to TRACE to see details logging)
+loggingLevel: ""
+cqDiagOutput: ""
+cqDiagTrace: ""
+cqDiagReport: ""
+## Windows product package mount and install in CCM REST API Server
+winInstall:
+  enabled: true
+  image:
+    repository: devops-plan/devopsplan-win-install
+    tag: sha256:a4e9bdaf038f945dcc522711a0efba5c3825cbc9b8bc7fb704ce1ab8bc6fdbe0
+    pullPolicy: IfNotPresent
+  accessModes:
+    - ReadWriteOnce
+  size: 2Gi
+  reclaimPolicy: Retain
+  existingClaim: ""
+## analytics settings
+analytics:
+  service: true
+  type: ClusterIP
+  exposePort: ""
+  internalPort: 8290
+  targetPort: 8290
+  targetPortPlatform: 8291
+  urlMapping: ""
+  replicaCount: 1
+  image:
+    repository: devops-plan/devopsplan-analytics
+    tag: sha256:ffcc386400da4528f747f870f9570fcae81263bcb4a7e3bfbe68d0298697b98b
+    pullPolicy: IfNotPresent
+  hostname: analytics
+  resources:
+    limits:
+      cpu: "1.0"
+      memory: 5000Mi
+    requests:
+      cpu: "0.4"
+      memory: 1000Mi
+  java_opts: "-XX:+UseZGC -XX:MaxRAMPercentage=90"
+  ingressMapping:
+    timeout_ms: 60000
+    connect_timeout_ms: 180000
+  basePath: "/plan/analytics"
+  ## Annotations for PVC
+  annotations: {}
+  nodeAffinity:
+    key: "kubernetes.io/arch"
+    values: "amd64"
+  podAffinity:
+    enabled: false
+  topologySpreadConstraints:
+    enabled: false
+    maxSkew: 1
+    topologyKey: "kubernetes.io/arch"
+    whenUnsatisfiable: ScheduleAnyway
+  loggingLevel: ""
+  cqDiagOutput: ""
+  cqDiagTrace: ""
+  cqDiagReport: ""
+## search settings
+search:
+  service: true
+  type: ClusterIP
+  ##  exposePort: ""
+  ##  internalPort: 8290
+  targetPort: 8190
+  ##  urlMapping: ""
+  replicaCount: 1
+  hostname: search
+  initResources:
+    limits:
+      cpu: "25m"
+      memory: "128Mi"
+    requests:
+      cpu: "25m"
+      memory: "128Mi"
+  resources:
+    limits:
+      cpu: "1.0"
+      memory: 5000Mi
+    requests:
+      cpu: "0.4"
+      memory: 1000Mi
+  java_opts: "-XX:+UseZGC -XX:MaxRAMPercentage=90"
+  ##  ingressMapping:
+  ##    timeout_ms: 60000
+  ##    connect_timeout_ms: 180000  
+  ## Annotations for PVC
+  annotations: {}
+  nodeAffinity:
+    key: "kubernetes.io/arch"
+    values: "amd64"
+  podAffinity:
+    enabled: false
+  topologySpreadConstraints:
+    enabled: false
+    maxSkew: 1
+    topologyKey: "kubernetes.io/arch"
+    whenUnsatisfiable: ScheduleAnyway
+  loggingLevel: ""
+  cqDiagOutput: ""
+  cqDiagTrace: ""
+  cqDiagReport: ""
+## Postgresql Database configuration settings
+postgresql:
+  enabled: true
+  replicaCount: 1
+  repository: devops-plan/devopsplan-postgresql
+  tag: sha256:72708db565c5cbc3c3a97bf4c1d33e333969e4df3e577223b13ca2fb81c4f7cc
+  pullPolicy: IfNotPresent
+  hostname: postgresql
+  existingPassword: ""
+  urlMapping: ""
+  maxConnection: 150
+  aduditLogCatalog: off
+  logHostname: false
+  logConnections: false
+  logDisconnections: false
+  LogLinePrefix: '%m [%p] '
+  service:
+    type: ClusterIP
+    exposePort: ""
+    ipAddress: ""
+    ingressMapping:
+      timeout_ms: 60000
+  resources:
+    limits:
+      cpu: "1"
+      memory: "1000Mi"
+    requests:
+      cpu: "200m"
+      memory: "500Mi"
+  jobResources:
+    limits:
+      memory: 64Mi
+      ephemeral-storage: 1Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+      ephemeral-storage: 1Mi
+  initResources:
+    limits:
+      memory: "64Mi"
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+  ## Annotations for PVC
+  annotations: {}
+  nodeAffinity:
+    key: "kubernetes.io/arch"
+    values: "amd64"
+  topologySpreadConstraints:
+    enabled: false
+    maxSkew: 1
+    topologyKey: "kubernetes.io/arch"
+    whenUnsatisfiable: ScheduleAnyway
+  migrate:
+    enabled: flase
+  dbs:
+    ##    keycloak:
+    ##      connections: 21
+    ##      secret: '{{ include "ccm.fullname" . }}-keycloak'
+    control:
+      connections: 21
+      secret: '{{ .Release.Name }}-control-postgres-password'
+## SSL configuration settings
+ssl:
+  enabled: false
+  password: ""
+  keyAlias: 1
+  configMapName: keystore-file
+swagger:
+  enabled: false
+## Feedback Configuration settings
+feedback:
+  toEmailaddress: ""
+  fromEmailaddress: ""
+## Single Sign-On (KeyCloak) settings
+priorityClassName: ''
+#priorityClassValue: 1000
+keycloak:
+  enabled: true
+  service:
+    enabled: true
+    ipAddress: ""
+    clientName: ccm-client
+    ingressMapping:
+      timeout_ms: 60000
+  username: admin
+  password: ""
+  realmName: "CCM"
+  authServerPath: /auth
+  dashboardsClientID: "dashboards-client"
+  dashboardsClientSecret: "58846041-eb1e-46d8-bac4-b2ba541ff491"
+  urlMapping: ""
+  jsonFile:
+    enabled: false
+    configMapName: keycloak-json
+##  Settings for the keycloak installs with DevOps Plan helm chart
+keycloaksrv:
+  enabled: true
+  image:
+    repository: devops-plan/devopsplan-keycloak
+    tag: sha256:81da34d0b150a4f0e822aea309eceb64f346eab4f991de85d992f3fb349bf966
+    digest: sha256:81da34d0b150a4f0e822aea309eceb64f346eab4f991de85d992f3fb349bf966
+    pullPolicy: IfNotPresent
+  auth:
+    adminUser: admin
+    adminPassword: UTr5VQWBX6
+  tls:
+    enabled: true
+    autoGenerated: true
+  service:
+    type: ClusterIP
+    nodePorts:
+      http: 30107
+      https: ""
+  postgresql:
+    enabled: true
+    auth:
+      postgresPassword: swmmHZMnjN
+      password: byjB3HhxYZ
+  keycloakConfigCli:
+    enabled: true
+    image:
+      repository: devops-plan/devopsplan-keycloak-cli
+      tag: sha256:0c3281633a29c799599c89f35b5e83564d9a2126b90867fc7f1f6223499c0cbf
+      digest: sha256:0c3281633a29c799599c89f35b5e83564d9a2126b90867fc7f1f6223499c0cbf
+      pullPolicy: IfNotPresent
+    existingConfigmap: devopsplan-keycloak-realm-configmap
+    backoffLimit: 1
+## Opensearch, Opensearch-Dashboards, Logstash and Nginx settings
+analyticsUserName: SYSTEM_ANALYTICS1
+analyticsBootstrapData: 90
+nginx:
+  service: true
+  type: ClusterIP
+  exposePort: ""
+  urlMapping: ""
+  replicaCount: 1
+  image:
+    repository: devops-plan/devopsplan-nginx
+    tag: sha256:ec0da0dd15ef53dde129c9e0745ff82f043ced819cd9516a87774b41ae673472
+    pullPolicy: IfNotPresent
+  hostname: nginx
+  resources:
+    limits:
+      cpu: 300m
+      memory: 300Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+  ingressMapping:
+    timeout_ms: 60000
+  nodeAffinity:
+    key: "kubernetes.io/arch"
+    values: "amd64"
+  topologySpreadConstraints:
+    enabled: false
+    maxSkew: 1
+    topologyKey: "kubernetes.io/arch"
+    whenUnsatisfiable: ScheduleAnyway
+dashboards: &dashboards
+  service: true
+  metrics: true
+  replicaCount: 1
+  image:
+    repository: devops-plan/devopsplan-dashboards
+    tag: sha256:49c0b435262ce3bdcc96532d7682dd6377e412a4105dd39d25d151443d280594
+    pullPolicy: IfNotPresent
+  hostname: dashboards
+  configFile:
+    enabled: false
+    configMapName: dashboards-config-file
+  basePath: "/opensearch-dashboards"
+  resources:
+    limits:
+      cpu: 500m
+      memory: 400Mi
+    requests:
+      cpu: 200m
+      memory: 200Mi
+  nodeAffinity:
+    key: "kubernetes.io/arch"
+    values: "amd64"
+  topologySpreadConstraints:
+    enabled: false
+    maxSkew: 1
+    topologyKey: "kubernetes.io/arch"
+    whenUnsatisfiable: ScheduleAnyway
+logstash:
+  service: true
+  replicaCount: 1
+  image:
+    repository: devops-plan/devopsplan-logstash
+    tag: sha256:ef58c33686bffa7e131cf75a4f2d6b77d06cb608b30c3c1fa18b80c5c3c5e52d
+    pullPolicy: IfNotPresent
+  hostname: logstash
+  port: 5011
+  username: logstash
+  password: logstash
+  resources:
+    limits:
+      cpu: 500m
+      memory: 2048Mi
+      ephemeral-storage: 500Mi
+    requests:
+      cpu: 200m
+      memory: 1024Mi
+      ephemeral-storage: 200Mi
+  nodeAffinity:
+    key: "kubernetes.io/arch"
+    values: "amd64"
+  topologySpreadConstraints:
+    enabled: false
+    maxSkew: 1
+    topologyKey: "kubernetes.io/arch"
+    whenUnsatisfiable: ScheduleAnyway
+opensearch: &opensearch
+  service: true
+  replicaCount: 1
+  image:
+    repository: devops-plan/devopsplan-opensearch
+    tag: sha256:e28a9f5961efdbd7568251044ac0d75827150bedceed9bdb171c9892b9abff6d
+    pullPolicy: IfNotPresent
+  hostname: opensearch
+  discoveryType: single-node
+  username: admin
+  password: zaqwsxZAQ@123
+  hash: ""
+  initResources:
+    limits:
+      cpu: "25m"
+      memory: "128Mi"
+    requests:
+      cpu: "25m"
+      memory: "128Mi"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 2048Mi
+    requests:
+      cpu: 500m
+      memory: 1500Mi
+  nodeAffinity:
+    key: "kubernetes.io/arch"
+    values: "amd64"
+  topologySpreadConstraints:
+    enabled: false
+    maxSkew: 1
+    topologyKey: "kubernetes.io/arch"
+    whenUnsatisfiable: ScheduleAnyway
+## Control settings:
+control:
+  enabled: false
+  gitea:
+    admin:
+      username: gitadmin
+    existingPassword: ""
+  postgresql:
+    enabled: false
+    nameOverride: controldb
+    host: ""
+    dbName: ""
+    port: 5432
+    username: ""
+    password: ""
+    existingPassword: ""
+  ingress:
+    host:
+      enabled: false
+## Persistence volume settings
+persistence:
+  ## Enable persistence
+  enabled: true
+  ccm:
+    storageClass: ibmc-file-gold-gid
+    enabled: true
+    data:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      reclaimPolicy: Retain
+      existingClaim: ""
+    config:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      reclaimPolicy: Retain
+      existingClaim: ""
+    share:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      reclaimPolicy: Retain
+      existingClaim: ""
+    logs:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      reclaimPolicy: Retain
+      existingClaim: ""
+  analytics:
+    enabled: true
+    storageClass: ''
+    data:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      reclaimPolicy: Retain
+      existingClaim: ""
+    config:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      reclaimPolicy: Retain
+      existingClaim: ""
+    share:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      reclaimPolicy: Retain
+      existingClaim: ""
+    logs:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      reclaimPolicy: Retain
+      existingClaim: ""
+  search:
+    enabled: true
+    storageClass: ''
+    data:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      reclaimPolicy: Retain
+      existingClaim: ""
+    config:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      reclaimPolicy: Retain
+      existingClaim: ""
+    share:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      reclaimPolicy: Retain
+      existingClaim: ""
+    logs:
+      enabled: true
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+      reclaimPolicy: Retain
+      existingClaim: ""
+  opensearch:
+    enabled: true
+    storageClass: ''
+    accessModes:
+      - ReadWriteOnce
+    size: 2Gi
+    reclaimPolicy: Retain
+    existingClaim: ""
+  postgresql:
+    enabled: true
+    storageClass: ''
+    accessModes:
+      - ReadWriteOnce
+    size: 2Gi
+    reclaimPolicy: Retain
+    existingClaim: ""
+    initPostgres: false
+  keycloak:
+    enabled: true
+    storageClass: ''
+    accessModes:
+      - ReadWriteOnce
+    size: 2Gi
+    reclaimPolicy: Retain
+    existingClaim: ""
+  connectOption:
+    ccm: false
+    path: ""
+  ## Type of storage class to be used
+  ## If defined, storageClassName: <storageClass>
+  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+  ##   GKE, AWS & OpenStack)
+  storageClass: ''
+  ## Annotations for PVC
+  annotations: {}
+  ## Enabling/disabling the application.properties and analytics.properties configmap.
+  ## If it is enabled, then it will update the values of the application.properties 
+  ## and analytics.properties files as set in the /config/ folder.
+  properties:
+    application:
+      enabled: false
+    analytics:
+      enabled: false
+disablePublicRoute: true
+disableAccessControl: true
+nameOverride: ""
+## Configuration for the service
+service:
+  type: ClusterIP
+  ipAddress: ""
+  exposePort: ""
+  urlMapping: ""
+  targetPort: 8190
+  targetPortPlatform: 8191
+  internalPort: 8190
+## Configuration for the ingress
+ingress:
+  enabled: true
+  type: route
+  host:
+    enabled: true
+  suffix: "" # suffix for the service names exposed via ingress, to enable multiple instances in a cluster
+  listenerPort: 8443
+  cert:
+    create: true
+    selfSigned: false
+  path: /
+  annotations: {}
+  servicePort: 8190
+  # kubernetes.io/ingress.class: nginx
+  # kubernetes.io/tls-acme: "true"
+  # ingress.kubernetes.io/affinity: cookie
+  labels: {}
+  # key: value
+
+  ## List of hosts for the ingress
+  hosts:
+    - ccm.example.com
+  ## TLS configuration
+  tls: []
+  ## TLS configuration example
+  ##  - secretName: ccm-example-tls
+  ##    hosts:
+  ##      - ccm.example.com
+probes:
+  startup:
+    ccm:
+      enabled: true
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 6
+      successThreshold: 1
+      failureThreshold: 20
+    analytics:
+      enabled: true
+      initialDelaySeconds: 10
+      periodSeconds: 30
+      timeoutSeconds: 6
+      successThreshold: 1
+      failureThreshold: 20
+    search:
+      enabled: true
+      tcpSocket:
+        port: 8190
+      initialDelaySeconds: 10
+      periodSeconds: 30
+      timeoutSeconds: 6
+      successThreshold: 1
+      failureThreshold: 20
+    nginx:
+      tcpSocket:
+        port: 5602
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 20
+      successThreshold: 1
+      initialDelaySeconds: 10
+    logstash:
+      tcpSocket:
+        port: 5011
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 20
+      successThreshold: 1
+      initialDelaySeconds: 10
+    dashboards:
+      tcpSocket:
+        port: 5601
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 20
+      successThreshold: 1
+      initialDelaySeconds: 10
+    opensearch:
+      tcpSocket:
+        port: 9200
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 30
+    postgresql:
+      enabled: true
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 30
+    keycloak:
+      httpGet:
+        path: /auth/
+        port: http
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 30
+  liveness:
+    ccm:
+      enabled: true
+      initialDelaySeconds: 10
+      periodSeconds: 30
+      timeoutSeconds: 6
+      successThreshold: 1
+      failureThreshold: 5
+    analytics:
+      enabled: true
+      initialDelaySeconds: 10
+      periodSeconds: 30
+      timeoutSeconds: 6
+      successThreshold: 1
+      failureThreshold: 5
+    search:
+      enabled: true
+      tcpSocket:
+        port: 8190
+      initialDelaySeconds: 10
+      periodSeconds: 30
+      timeoutSeconds: 6
+      successThreshold: 1
+      failureThreshold: 5
+    postgresql:
+      enabled: true
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 6
+    nginx:
+      tcpSocket:
+        port: 5602
+      initialDelaySeconds: 10
+      periodSeconds: 20
+      timeoutSeconds: 10
+      failureThreshold: 3
+      successThreshold: 1
+    logstash:
+      tcpSocket:
+        port: 5011
+      initialDelaySeconds: 10
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 10
+      successThreshold: 1
+    dashboards:
+      tcpSocket:
+        port: 5601
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 10
+      successThreshold: 1
+      initialDelaySeconds: 10
+    opensearch:
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 10
+      successThreshold: 1
+      initialDelaySeconds: 10
+      tcpSocket:
+        port: 9200
+    keycloak:
+      httpGet:
+        path: /auth/
+        port: http
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+      successThreshold: 1
+  readiness:
+    ccm:
+      enabled: true
+      initialDelaySeconds: 10
+      periodSeconds: 60
+      timeoutSeconds: 6
+      successThreshold: 1
+      failureThreshold: 3
+    analytics:
+      enabled: true
+      initialDelaySeconds: 10
+      periodSeconds: 60
+      timeoutSeconds: 6
+      successThreshold: 1
+      failureThreshold: 3
+    search:
+      enabled: true
+      tcpSocket:
+        port: 8190
+      initialDelaySeconds: 10
+      periodSeconds: 60
+      timeoutSeconds: 6
+      successThreshold: 1
+      failureThreshold: 3
+    postgresql:
+      enabled: true
+      initialDelaySeconds: 5
+      periodSeconds: 10
+      timeoutSeconds: 5
+      successThreshold: 1
+      failureThreshold: 6
+    nginx:
+      tcpSocket:
+        port: 5602
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      timeoutSeconds: 10
+      failureThreshold: 3
+      successThreshold: 1
+    logstash:
+      tcpSocket:
+        port: 5011
+      initialDelaySeconds: 10
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 10
+      successThreshold: 1
+    dashboards:
+      tcpSocket:
+        port: 5601
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 10
+      successThreshold: 1
+      initialDelaySeconds: 10
+    opensearch:
+      tcpSocket:
+        port: 9200
+      periodSeconds: 5
+      timeoutSeconds: 3
+      failureThreshold: 3
+    keycloak:
+      httpGet:
+        path: /auth/realms/master
+        port: http
+      periodSeconds: 20
+      timeoutSeconds: 5
+      failureThreshold: 3
+      successThreshold: 1
+      initialDelaySeconds: 10
+  http:
+    ccm:
+      path: /ccmweb/rest/healthcheck
+      scheme: HTTPS
+    ccmPlatform:
+      path: /plan/ccmweb/rest/healthcheck
+      scheme: HTTP
+    analytics:
+      path: /analytics/ccmweb/rest/healthcheck
+      scheme: HTTPS
+    analyticsPlatform:
+      path: /plan/analytics/analytics/ccmweb/rest/healthcheck
+      scheme: HTTP
+    search:
+      path: /ccmweb/rest/healthcheck
+      scheme: HTTPS
+# ccm Pods resource requests, limits and java option
+ccm: &ccm
+  initResources:
+    limits:
+      cpu: "25m"
+      memory: "128Mi"
+    requests:
+      cpu: "25m"
+      memory: "128Mi"
+  resources:
+    limits:
+      memory: 5000Mi
+      cpu: "1"
+      ephemeral-storage: 500Mi
+    requests:
+      cpu: "0.4"
+      memory: 1000Mi
+      ephemeral-storage: 200Mi
+  java_opts: "-XX:+UseZGC -XX:MaxRAMPercentage=90"
+  ingressMapping:
+    timeout_ms: 60000
+    connect_timeout_ms: 180000
+  nodeAffinity:
+    key: "kubernetes.io/arch"
+    values: "amd64"
+  podAffinity:
+    enabled: false
+  topologySpreadConstraints:
+    enabled: false
+    maxSkew: 1
+    topologyKey: "kubernetes.io/arch"
+    whenUnsatisfiable: ScheduleAnyway
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 80
+    targetMemoryUtilizationPercentage: 80
+nonRootUser: true
+securityContext: &securityContext
+  runAsUser: 1001
+  fsGroup: 65531
+nodeSelector: {}
+tolerations: []
+affinity: {}
+annotations: &annotations
+  ibm:
+    productID: "51f4c4cc612c4c318a6475ae7fc6bb53"
+    productName: "IBM DevOps Plan"
+    productVersion: 3.0.4
+    productMetric: "CONCURRENT_USER"
+    productChargedContainers: "All"
+  hcl:
+    productName: HCL Devops Plan
+    productVersion: "3.0.4"
+data-prepper:
+  enabled: true
+  opensearch: *opensearch
+  dashboards: *dashboards
+  securityContext: *securityContext
+  ccm: *ccm
+  annotations: *annotations
+  image:
+    repository: devops-plan/devopsplan-data-prepper
+    pullPolicy: IfNotPresent
+    tag: sha256:346ecaad3e2d5235a509be2b65883a3aed1a38e4b98f51202317f7f004cdc2f5
+  repoDigests: true
+  bearerTokenSecretName: velocity-tokens
+backupRestore:
+  enabled: false
+llama:
+  enabled: false
+  image:
+    tag: sha256:5dc4a601301b2f78a72fb5d6f363a68580901510a15a11cc29f74cf0b1347127
+  repoDigests: true
+  ollama:
+    # -- List of models to pull at container startup
+    models:
+      pull:
+        - tinyllama
+        - llama2
+      run:
+        - tinyllama
+        - llama2
+  securityContext: *securityContext

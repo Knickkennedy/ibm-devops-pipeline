@@ -1,0 +1,181 @@
+{{- if not .Values.global.platform.enabled }}
+{{- if  .Values.keycloaksrv.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devopsplan-keycloak-realm-configmap
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+data:
+  ccm-realm.json: |-
+    {
+      "realm": "CCM",
+      "enabled": true,
+      "users": [],
+      "clients": [
+        {
+          "clientId": "{{ .Values.keycloak.service.clientName }}",
+          "enabled": true,
+{{- if .Values.global.domain }}
+{{- if .Values.global.platform.enabled }}
+          "baseUrl": "https://{{ .Values.global.domain }}{{ .Values.ingress.path }}",
+          "redirectUris": [
+            "",
+            "https://{{ .Values.global.domain }}{{ .Values.ingress.path }}/*"
+          ],
+          "webOrigins": [
+            "https://{{ .Values.global.domain }}{{ .Values.ingress.path }}/*",
+            "https://{{ .Values.global.domain }}{{ .Values.ingress.path }}"
+          ],
+{{- else }}
+          "baseUrl": "https://{{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}",
+          "redirectUris": [
+            "",
+            "https://{{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}/*"
+          ],
+          "webOrigins": [
+            "https://{{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}/*",
+            "https://{{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}"
+          ],
+{{- end }}
+{{- else if .Values.global.sofySolutionContext }}
+          "baseUrl": "https://{{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.MY_SUB_DOMAIN",
+          "redirectUris": [
+            "",
+            "https://{{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.MY_SUB_DOMAIN/*"
+          ],
+          "webOrigins": [
+            "https://{{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.MY_SUB_DOMAIN/*",
+            "https://{{ include "ccm.fullname" . }}{{ .Values.ingress.suffix }}.MY_SUB_DOMAIN"
+          ],
+{{- else if .Values.service.urlMapping }}
+          "baseUrl": "{{ .Values.service.urlMapping }}",
+          "redirectUris": [
+            "",
+            "{{ .Values.service.urlMapping }}/*"
+          ],
+          "webOrigins": [
+            "{{ .Values.service.urlMapping }}/*",
+            "{{ .Values.service.urlMapping }}"
+          ],
+{{- else if and (or (eq "NodePort" .Values.service.type ) (eq "LoadBalancer" .Values.service.type )) (.Values.service.exposePort) }}
+{{- if .Values.service.ipAddress }}
+          "baseUrl": "https://{{ .Values.service.ipAddress }}:{{ .Values.service.exposePort }}",
+          "redirectUris": [
+            "",
+            "https://{{ .Values.service.ipAddress }}:{{ .Values.service.exposePort }}/*"
+          ],
+          "webOrigins": [
+            "https://{{ .Values.service.ipAddress }}:{{ .Values.service.exposePort }}/*",
+            "https://{{ .Values.service.ipAddress }}:{{ .Values.service.exposePort }}"
+          ],
+{{- else }}
+          "baseUrl": "https://{{ .Values.keycloak.service.ipAddress }}:{{ .Values.service.exposePort }}",
+          "redirectUris": [
+            "",
+            "https://{{ .Values.keycloak.service.ipAddress }}:{{ .Values.service.exposePort }}/*"
+          ],
+          "webOrigins": [
+            "https://{{ .Values.keycloak.service.ipAddress }}:{{ .Values.service.exposePort }}/*",
+            "https://{{ .Values.keycloak.service.ipAddress }}:{{ .Values.service.exposePort }}"
+          ],
+{{- end }}
+{{- end }}
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": true,
+          "publicClient": true,
+          "frontchannelLogout": true,
+          "protocol": "openid-connect",
+          "attributes": {
+            "frontchannel.logout.session.required": "true",
+            "use.refresh.tokens": "true",
+            "backchannel.logout.session.required": "true",
+          },
+          "fullScopeAllowed": true,
+        },
+        {
+          "clientId": "{{ .Values.keycloak.dashboardsClientID }}",
+          "enabled": true,
+{{- if .Values.global.domain }}
+{{- if .Values.nginx.service }}
+          "rootUrl": "https://{{ include "ccm.fullname" . }}-nginx{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}/",
+          "adminUrl": "https://{{ include "ccm.fullname" . }}-nginx{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}/",
+          "baseUrl": "https://{{ include "ccm.fullname" . }}-nginx{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}/",
+          "redirectUris": [
+            "https://{{ include "ccm.fullname" . }}-nginx{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}/*"
+          ],
+          "webOrigins": [
+            "https://{{ include "ccm.fullname" . }}-nginx{{ .Values.ingress.suffix }}.{{ .Values.global.domain }}/*"
+          ],
+{{- end }}
+{{- else if .Values.global.sofySolutionContext }}
+          "rootUrl": "https://{{ include "ccm.fullname" . }}-nginx{{ .Values.ingress.suffix }}.MY_SUB_DOMAIN/",
+          "adminUrl": "https://{{ include "ccm.fullname" . }}-nginx{{ .Values.ingress.suffix }}.MY_SUB_DOMAIN/",
+          "baseUrl": "https://{{ include "ccm.fullname" . }}-nginx-nginx{{ .Values.ingress.suffix }}.MY_SUB_DOMAIN/",
+          "redirectUris": [
+            "https://{{ include "ccm.fullname" . }}-nginx{{ .Values.ingress.suffix }}.MY_SUB_DOMAIN/*"
+          ],
+          "webOrigins": [
+            "https://{{ include "ccm.fullname" . }}-nginx{{ .Values.ingress.suffix }}.MY_SUB_DOMAIN/*"
+          ],
+{{- else if .Values.nginx.urlMapping }}
+          "rootUrl": "{{ .Values.nginx.urlMapping }}/",
+          "adminUrl": "{{ .Values.nginx.urlMapping }}/",
+          "baseUrl": "{{ .Values.nginx.urlMapping }}/",
+          "redirectUris": [
+            "{{ .Values.nginx.urlMapping }}/*"
+          ],
+          "webOrigins": [
+            "{{ .Values.nginx.urlMapping }}/*"
+          ],
+{{- else if and (or (eq "NodePort" .Values.service.type ) (eq "LoadBalancer" .Values.service.type )) (.Values.service.exposePort) }}
+{{- if .Values.service.ipAddress }}
+          "rootUrl": "https://{{ .Values.service.ipAddress }}:{{ .Values.nginx.exposePort }}/",
+          "adminUrl": "https://{{ .Values.service.ipAddress }}:{{ .Values.nginx.exposePort }}/",
+          "baseUrl": "https://{{ .Values.service.ipAddress }}:{{ .Values.nginx.exposePort }}/",
+          "redirectUris": [
+            "https://{{ .Values.service.ipAddress }}:{{ .Values.nginx.exposePort }}/*"
+          ],
+          "webOrigins": [
+            "https://{{ .Values.service.ipAddress }}:{{ .Values.nginx.exposePort }}/*"
+          ],
+{{- else }}
+          "rootUrl": "https://{{ .Values.keycloak.service.ipAddress }}:{{ .Values.nginx.exposePort }}/",
+          "adminUrl": "https://{{ .Values.keycloak.service.ipAddress }}:{{ .Values.nginx.exposePort }}/",
+          "baseUrl": "https://{{ .Values.keycloak.service.ipAddress }}:{{ .Values.nginx.exposePort }}/",
+          "redirectUris": [
+            "https://{{ .Values.keycloak.service.ipAddress }}:{{ .Values.nginx.exposePort }}/*"
+          ],
+          "webOrigins": [
+            "https://{{ .Values.keycloak.service.ipAddress }}:{{ .Values.nginx.exposePort }}/*"
+          ],
+{{- end }}
+{{- end }}
+          "standardFlowEnabled": true,
+          "directAccessGrantsEnabled": true,
+          "publicClient": true,
+          "frontchannelLogout": true,
+          "protocol": "openid-connect",
+          "attributes": {
+            "backchannel.logout.session.required": "true",
+          },
+          "fullScopeAllowed": true,
+        }
+      ],
+      "roles": {
+        "realm": []
+      },
+      "requiredActions": [
+        {
+          "alias": "VERIFY_PROFILE",
+          "name": "Verify Profile",
+          "providerId": "VERIFY_PROFILE",
+          "enabled": false,
+          "defaultAction": false,
+          "priority": 10,
+          "config": {}
+        }
+      ]
+    }
+{{- end }}
+{{- end }}

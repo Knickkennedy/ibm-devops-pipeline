@@ -1,0 +1,125 @@
+#
+# Licensed Materials - Property of HCL
+# (C) Copyright HCL Technologies Ltd. 2024, 2025.  All Rights Reserved.
+# Note to U.S. Government Users Restricted Rights:
+# Use, duplication or disclosure restricted by GSA ADP Schedule Contract
+#
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: '{{ .Release.Name }}-control-ini-plaintext'
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: {{.Release.Name}}-control-ini-plaintext
+data:
+  # These are for things that need templating.
+  # Non-templated stuff can go into values.yaml
+  {{- if (or .Values.global.platform.enabled .Values.global.platform.smtp)}}
+  {{/* Only configure if all three required values are non-empty */}}
+  {{- if (or .Values.global.platform.smtp.sender
+             .Values.global.platform.smtp.host
+             .Values.global.platform.smtp.port) -}}
+  mailer: |
+    ENABLED=true
+    SMTP_ADDR={{ .Values.global.platform.smtp.host }}
+    SMTP_PORT={{ .Values.global.platform.smtp.port }}
+    FROM={{ .Values.global.platform.smtp.sender }}
+    {{/* force port 587 to use starttls, per network standards */}}
+    {{- if (or .Values.global.platform.smtp.startTLS (eq (int .Values.global.platform.smtp.port) 587)) }}
+    PROTOCOL=smtp+starttls
+    {{- else }}
+    PROTOCOL={{ ternary "smtps" "smtp" (not (not .Values.global.platform.smtp.smtps)) }}
+    {{- end }}
+    {{- if .Values.global.platform.smtp.username }}
+    USER={{ .Values.global.platform.smtp.username }}
+    {{- else }}
+    USER=
+    {{- end }}
+    {{- if .Values.global.platform.smtp.password }}
+    PASSWD={{ .Values.global.platform.smtp.password }}
+    {{- else }}
+    PASSWD=
+    {{- end }}
+  {{- end }}
+  {{- end }}
+  server: |
+    LANDING_PAGE=login
+    DOMAIN={{ .Values.global.domain }}
+    {{- if .Values.ssh.server_ciphers}}
+    SSH_SERVER_CIPHERS={{.Values.ssh.server_ciphers}}
+    {{- end }}
+    {{- if .Values.ssh.server_key_exchanges}}
+    SSH_SERVER_KEY_EXCHANGES={{.Values.ssh.server_key_exchanges}}
+    {{- end }}
+    {{- if .Values.ssh.server_macs}}
+    SSH_SERVER_MACS={{.Values.ssh.server_macs}}
+    {{- end }}
+    BUILTIN_SSH_SERVER_USER=git
+  service: |
+  {{- if .Values.global.platform.enabled }}
+    PLATFORM_PATH={{.Values.global.platform.path}}{{.Values.global.platform.embedPath}}
+    PLATFORM_LOGOUT_URL={{.Values.global.platform.oidc.logoutPath}}?client_id={{.Values.platform.oidc.clientId}}
+    PLATFORM_ENABLED=true
+  {{- else }}
+    PLATFORM_ENABLED=false
+  {{- end }}
+    CONTROL_BRAND={{ default "IBM" .Values.global.devopsPlanBrand }}
+  {{- if not .Values.postgresql.enabled }}
+  # Externally provided postgresql:
+  # USER and PASSWORD will be in a Kubernetes secret
+  database: |
+    DB_TYPE=postgres
+    NAME={{ default "control" .Values.postgresql.dbName }}
+    {{- if .Values.global.platform.enabled }}
+    {{- if .Values.postgresql.host }}
+    HOST={{ .Values.postgresql.host }}:{{ default 5432 .Values.postgresql.port }}
+    {{- else }}
+    HOST={{ .Release.Name }}-postgresql:5432
+    {{- end }}
+    {{- else if .Values.global.plan.enabled }}
+    {{- if .Values.postgresql.host }}
+    HOST={{ .Values.postgresql.host }}:{{ default 5432 .Values.postgresql.port }}
+    {{- else }}
+    HOST={{ include "plan.fullname" . }}-postgresql:5432
+    {{- end }}
+    {{- else }}
+    {{- if .Values.postgresql.host }}
+    HOST={{ .Values.postgresql.host }}:{{ default 5432 .Values.postgresql.port }}
+    USER={{ .Values.postgresql.username }}
+    PASSWD={{ .Values.postgresql.password }}
+    {{- else }}
+    {{- fail "Cannot determine PG host" }}
+    {{- end }}
+    {{- end }}
+  {{- end }}
+  webhook: |
+    ALLOWED_HOST_LIST={{ default "*" .Values.global.platform.webhook_allowed_host_list}}
+  security: |
+    PASSWORD_HASH_ALGO=argon2
+  session: |
+    PROVIDER="db"
+    PROVIDER_CONFIG=""
+    COOKIE_NAME=i_like_control
+    SESSION_LIFE_TIME={{ .Values.gitea.config.session.sessionLifeTime | default 1200}}
+    GC_INTERVAL_TIME={{ .Values.gitea.config.session.gcIntervalTime | default 300}}
+  oauth2: |
+    ENABLED=true
+  {{- if (or .Values.ssh.minimum_key_sizes.rsa .Values.ssh.minimum_key_sizes.dsa .Values.ssh.minimum_key_sizes.ed25519 .Values.ssh.minimum_key_sizes.ecdsa) }}
+  "ssh.minimum_key_sizes": |
+    {{- if .Values.ssh.minimum_key_sizes.rsa}}
+    RSA={{.Values.ssh.minimum_key_sizes.rsa}}
+    {{- end }}
+    {{- if .Values.ssh.minimum_key_sizes.dsa}}
+    DSA={{.Values.ssh.minimum_key_sizes.dsa}}
+    {{- end }}
+    {{- if .Values.ssh.minimum_key_sizes.ed25519}}
+    ED25519={{.Values.ssh.minimum_key_sizes.ed25519}}
+    {{- end }}
+    {{- if .Values.ssh.minimum_key_sizes.ecdsa}}
+    ECDSA={{.Values.ssh.minimum_key_sizes.ecdsa}}
+    {{- end }}
+  {{- end }}

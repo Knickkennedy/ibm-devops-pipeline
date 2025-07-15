@@ -1,0 +1,30 @@
+{{- if .Values.analytics.service -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ccm.fullname" . }}-analytics
+  labels:
+    {{- include "ccm.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.analytics.type }}
+  sessionAffinity: ClientIP
+  ports:
+{{- if .Values.global.platform.enabled }}
+    - name: http
+      port: 8291
+      targetPort: {{ .Values.analytics.targetPortPlatform }}
+{{- end }}
+    - name: https
+      port: {{ .Values.analytics.internalPort }}
+      targetPort: {{ .Values.analytics.targetPort }}
+    {{- if or (eq "NodePort" .Values.analytics.type ) (eq "LoadBalancer" .Values.analytics.type ) }}
+    {{- if .Values.analytics.exposePort }}
+      nodePort: {{ .Values.analytics.exposePort }}
+    {{- end }}
+    {{- end }}
+      protocol: TCP
+
+  selector:
+    app.kubernetes.io/name: {{ include "ccm.name" . }}-analytics
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}

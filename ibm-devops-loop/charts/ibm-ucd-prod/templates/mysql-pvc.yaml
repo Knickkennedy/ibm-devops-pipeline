@@ -1,0 +1,25 @@
+{{- if eq (.Values.database.createDatabase) (true) }}
+{{- include "sch.config.init" (list . "ibm-ucd-prod.sch.chart.config.values") -}}
+{{- $fullName := include "sch.names.fullName" (list .) -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $fullName }}-mysql
+  labels:
+{{ include "sch.metadata.labels.standard" (list . "") | indent 4 }}
+spec:
+  {{- if .Values.database.dbVolume.storageClassName }}
+  storageClassName: {{ default nil .Values.database.dbVolume.storageClassName | quote }}
+  {{- else if and (((.Values.global).platform).enabled) (((.Values.global).persistence).rwoStorageClass) }}
+  storageClassName: {{ .Values.global.persistence.rwoStorageClass | quote }}
+  {{- end }}
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      {{- if .Values.database.dbVolume.size }}
+      storage: {{ .Values.database.dbVolume.size | quote }}
+      {{- else }}
+      storage: {{ .Values.appDataVolume.size | quote }}
+      {{- end }}
+{{- end }}

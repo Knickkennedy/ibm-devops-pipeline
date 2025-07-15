@@ -1,0 +1,120 @@
+{{- if include "testhub.tests.enabled" . }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: userlibs
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-userlibs'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: '{{ .Release.Name }}'
+      app.kubernetes.io/name: userlibs
+      app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+  serviceName: userlibs
+  template:
+    metadata:
+      annotations:
+        productID: e3e180b0faae4301b54c5c9b37319e5c
+        productMetric: FLOATING_USER
+        productName: IBM Rational Test Automation Server Basic
+        productVersion: "11.0.5"
+        cloudpakName : IBM DevOps for IBM Cloud Paks
+        cloudpakId : dedb7a9445a44fb88c927c1658243cd1
+        cloudpakMetric : RESOURCE_UNIT
+        productCloudpakRatio : "1:1"
+        productChargedContainers : All
+      labels:
+        app.kubernetes.io/instance: '{{ .Release.Name }}'
+        app.kubernetes.io/name: userlibs
+        app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/arch
+                operator: In
+                values:
+                - amd64
+{{- if .Values.priorityClassName }}
+      priorityClassName: '{{ .Values.priorityClassName }}'
+{{- end }}
+      containers:
+      - args:
+        - |
+          mkdir -p /data/Camel
+          mkdir -p /data/CentraSite
+          mkdir -p /data/CICS
+          mkdir -p /data/Coherence
+          mkdir -p /data/IMS
+          mkdir -p /data/Integra
+          mkdir -p /data/JDBC
+          mkdir -p /data/JMS
+          mkdir -p /data/SAP
+          mkdir -p /data/SoftwareAGUM
+          mkdir -p /data/TIBCO
+          mkdir -p /data/WAS
+          mkdir -p /data/WebLogicJMX
+          mkdir -p /data/webMethods
+          mkdir -p /data/WMQ
+          mkdir -p /data/tam-ext
+          mkdir -p /data/execution-ext
+          exec sleep infinity
+        command:
+        - /bin/sh
+        - -c
+        image: '{{ (default (default .Values.imageRegistry .Values.global.imageRegistry) .Values.init.registry) }}/{{ regexReplaceAll .Values.imageRepoRegex .Values.init.image .Values.imageRepoRepl }}'
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          exec:
+            command:
+            - /bin/true
+          failureThreshold: 1
+          initialDelaySeconds: 10
+          periodSeconds: 180
+          timeoutSeconds: 5
+        readinessProbe:
+          exec:
+            command:
+            - /bin/true
+          failureThreshold: 1
+          initialDelaySeconds: 10
+          periodSeconds: 180
+        name: main
+{{- if .Values.userlibs.resources }}
+        resources: {{- toYaml .Values.userlibs.resources | nindent 10 }}
+{{- end }}
+{{- template "testhub.container.security-context" .Values.containerSecurityContext }}
+        volumeMounts:
+        - mountPath: /data
+          name: data
+{{- if include "testhub.ibmImagePullSecret" . }}
+      imagePullSecrets:
+      - name: '{{ include "testhub.ibmImagePullSecret" . }}'
+{{- end }}
+      hostIPC: false
+      hostNetwork: false
+      hostPID: false
+{{- template "testhub.pod.security-context" $ }}
+      serviceAccountName: '{{ .Release.Name }}-userlibs'
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - '{{ default "ReadWriteMany" .Values.global.persistence.rwxAccessMode }}'
+{{- if .Values.global.persistence.rwxStorageClass }}
+      storageClassName: '{{ .Values.global.persistence.rwxStorageClass }}'
+{{- end }}
+      resources: #storage
+        requests:
+          storage: 1Gi
+{{- end }}

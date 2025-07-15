@@ -1,0 +1,39 @@
+{{- if (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+{{- include "sch.config.init" (list . "ibm-ucd-prod.sch.chart.config.values") -}}
+{{- $fullName := include "sch.names.fullName" (list .) -}}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ $fullName }}-dfe
+  labels:
+{{ include "sch.metadata.labels.standard" (list . "route") | indent 4 }}
+spec:
+  host: {{ .Values.ingress.dfehost | quote}}
+  subdomain: ''
+  to:
+    kind: Service
+    name: {{ $fullName }}-dfe
+    weight: 100
+  port:
+    {{- if .Values.secureConnections.required }}
+    targetPort: https-dfe
+    {{- else }}
+    targetPort: http-dfe
+    {{- end }}
+  {{- if .Values.secureConnections.required }}
+  tls:
+    termination: passthrough
+    insecureEdgeTerminationPolicy: Redirect
+  {{- else if .Values.ingress.tlsSecret }}
+  tls:
+    termination: edge
+    key: {{ index (lookup "v1" "Secret" .Release.Namespace .Values.ingress.tlsSecret).data "tls.key" | b64dec | quote }}
+    certificate: {{ index (lookup "v1" "Secret" .Release.Namespace .Values.ingress.tlsSecret).data "tls.crt" | b64dec | quote }}
+    {{- $caCert := index (lookup "v1" "Secret" .Release.Namespace .Values.ingress.tlsSecret).data "ca.crt" -}}
+    {{ if $caCert }}caCertificate: {{ $caCert | b64dec | quote }} {{ end }}
+    insecureEdgeTerminationPolicy: Redirect
+  {{- end }}
+  wildcardPolicy: None
+status:
+  ingress: []
+{{- end }}

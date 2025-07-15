@@ -1,0 +1,20 @@
+ingress:
+  enabled: true
+  type: nginx
+
+analytics:
+  exposePort: 30105
+  type: LoadBalancer
+  
+postgresql:
+  service:
+    exposePort: 30106
+    type: LoadBalancer
+
+nginx:
+  exposePort: 30103    # OpenSearch Dashboards external port
+  type: LoadBalancer
+
+service:
+  exposePort: 30102    # DevOps Plan external port
+  type: LoadBalancer

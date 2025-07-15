@@ -1,0 +1,37 @@
+{{- if .Values.agent.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.agent.service.name }}
+  labels:
+{{ include "ibm-devops-build.labels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.agent.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Values.agent.service.name }}
+      app.kubernetes.io/instance: "{{ .Release.Name }}"
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.agent.service.name }}
+        app.kubernetes.io/instance: "{{ .Release.Name }}"
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.agent.service.name }}
+          {{- if .Values.image.repoDigests }}
+          image: {{ .Values.global.imageRegistry }}/ibm-devops-build-agent@sha256:d078b3a27144c183e6cf3ed9328e883f6110b03f498d31d0710af6edba1ccc38
+          {{- else }}
+          image: {{ .Values.global.imageRegistry }}/ibm-devops-build-agent:7.1.0-1176951
+          {{- end }}
+          imagePullPolicy: {{ .Values.agent.image.pullPolicy }}
+          env:
+            - name: REMOTE_HOST_URL
+              value: "{{ .Values.agent.env.REMOTE_HOST_URL }}"
+            - name: REMOTE_HOST_PORT
+              value: "{{ .Values.agent.env.REMOTE_HOST_PORT }}"
+{{- end }}

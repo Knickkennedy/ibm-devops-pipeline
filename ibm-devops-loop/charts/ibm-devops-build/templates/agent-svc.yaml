@@ -1,0 +1,17 @@
+{{- if .Values.agent.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.agent.service.name }}
+  labels:
+{{ include "ibm-devops-build.labels" . | indent 4 }}
+spec:
+  selector:
+    app: {{ .Values.agent.service.name }}
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+  ports:
+    - name: agent
+      protocol: TCP
+      port: {{ .Values.agent.service.ports.agent }}
+      targetPort: {{ .Values.agent.service.ports.agent }}
+{{- end }}

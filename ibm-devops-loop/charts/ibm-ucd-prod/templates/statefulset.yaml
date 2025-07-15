@@ -1,0 +1,363 @@
+{{- $licenseEnabled := include "{{ .Chart.Name }}.licenseValidate" .  | required "License must be accepted by setting Values.license.accept to true." -}}
+{{- if $licenseEnabled }}
+{{- include "sch.config.init" (list . "ibm-ucd-prod.sch.chart.config.values") -}}
+{{- $fullName := include "sch.names.fullName" (list .) -}}
+{{- $imageSpec := include "{{ .Chart.Name }}.imageSpec" . | trim -}}
+{{- $extLibCm := include "{{ .Chart.Name }}.extLibConfigName" . | trim -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullName }}
+  labels:
+{{ include "sch.metadata.labels.standard" (list . "srv") | indent 4 }}
+spec:
+  serviceName: {{ $fullName }}-hl
+  replicas: {{ .Values.replicas.server }}
+  selector:
+    matchLabels:
+{{ include "sch.metadata.labels.standard" (list . "srv") | indent 6 }}
+  template:
+    metadata:
+      labels:
+{{ include "sch.metadata.labels.standard" (list . "srv") | indent 8 }}
+        ucdcomp: {{ .Release.Name }}-server
+      annotations:
+        productName: "IBM DevOps Deploy Server Agent"
+        productID: "f6a78b2d36ca400389f3a60332112399"
+        productVersion: "8.1.2"
+        productMetric: "MANAGED_VIRTUAL_SERVER"
+        productChargedContainers: "All"
+    spec:
+      serviceAccountName: {{ $fullName }}
+      hostNetwork: false
+      hostPID: false
+      hostIPC: false
+      securityContext:
+        runAsNonRoot: true
+{{- if not (.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
+        runAsUser: 1001
+        fsGroup: {{ .Values.persistence.fsGroup }}
+{{- else }}
+        supplementalGroups: [{{ .Values.persistence.fsGroup }}]
+{{- end }}
+      affinity:
+      {{- include "sch.affinity.nodeAffinity" (list .) | indent 8 }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: ucdcomp
+                  operator: In
+                  values:
+                  - {{ .Release.Name }}-server
+              topologyKey: "kubernetes.io/hostname"
+      initContainers:
+      - name: init
+        image: {{ $imageSpec | quote }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          privileged: false
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+{{- if not (.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
+          runAsUser: 1001
+{{- end }}
+          capabilities:
+            drop:
+            - ALL
+        command: ["/usr/local/bin/init.sh"]
+        env:
+          - name: UCD_PLATFORM_ENABLED
+            value: {{ ((.Values.global).platform).enabled | quote }}
+          {{- if and (eq (((.Values.global).platform).enabled) (true)) (.Values.global.ibmCertSecretName) }}
+          {{- $caCert := index (lookup "v1" "Secret" .Release.Namespace .Values.global.ibmCertSecretName).data "ca.crt" -}}
+          {{- if $caCert }}
+          - name: DEVOPS_LOOP_SELFSIGNED_CACERT
+            value: {{ $caCert | b64dec | quote }}
+          {{- end }}
+          {{- end }}
+          - name: DB_NAME
+            value: {{ .Values.database.name }}
+          - name: DB_USER
+            value: {{ .Values.database.username }}
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                {{- if .Values.secret.name }}
+                name: {{ .Values.secret.name }}
+                {{- else }}
+                name: {{ .Release.Name }}-secrets
+                {{- end }}
+                key: dbpassword
+          - name: DB_TCP_PORT
+            {{- if eq (.Values.database.createDatabase) (true) }}
+            value: "3306"
+            {{- else }}
+            value: {{ .Values.database.port | quote }}
+            {{- end }}
+          - name: DB_TCP_URL
+            {{- if eq (.Values.database.createDatabase) (true) }}
+            value: {{ $fullName }}-mysql.{{ .Release.Namespace }}.svc.cluster.local
+            {{- else }}
+            value: {{ .Values.database.hostname}}
+            {{- end }}
+          - name: DB_TYPE
+            {{- if eq (.Values.database.createDatabase) (true) }}
+            value: "mysql"
+            {{- else }}
+            value: {{ .Values.database.type}}
+            {{- end }}
+          - name: DB_JDBC_CONN_URL
+            value: {{ .Values.database.jdbcConnUrl}}
+          - name: SECURE
+            {{- if .Values.secureConnections.required }}
+            value: "Y"
+            {{- else }}
+            value: "N"
+            {{- end }}
+          - name: UCD_INIT_PASSWD
+            valueFrom:
+              secretKeyRef:
+                {{- if .Values.secret.name }}
+                name: {{ .Values.secret.name }}
+                {{- else }}
+                name: {{ .Release.Name }}-secrets
+                {{- end }}
+                key: initpassword
+          - name: UCD_KEYSTORE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                {{- if .Values.secret.name }}
+                name: {{ .Values.secret.name }}
+                {{- else }}
+                name: {{ .Release.Name }}-secrets
+                {{- end }}
+                key: keystorepassword
+                optional: true
+          - name: UCD_PREVIOUS_KEYSTORE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                {{- if .Values.secret.name }}
+                name: {{ .Values.secret.name }}
+                {{- else }}
+                name: {{ .Release.Name }}-secrets
+                {{- end }}
+                key: previouskeystorepassword
+                optional: true
+          - name: UCD_STS
+            value: {{ .Release.Name }}
+          - name: LICENSE_SERVER_URL
+            {{- if eq (((.Values.global).platform).enabled) (true) }}
+            value: {{ .Values.global.rationalLicenseKeyServer | quote }}
+            {{- else }}
+            value: {{ .Values.license.serverUrl | quote }}
+            {{- end }}
+          - name: JDK_JAVA_OPTIONS
+            value: "-Dcom.redhat.fips=false"
+          - name: JAVA_TOOL_OPTIONS
+            value: "-Dcom.redhat.fips=false"
+{{- if eq (((.Values.global).platform).enabled) (true) }}
+          - name: UCD_WEB_URL
+            value: https://{{ .Values.global.domain }}{{ .Values.ingress.path }}
+{{- else if (.Values.ingress.host) }}
+          - name: UCD_WEB_URL
+{{- if .Values.secureConnections.required }}
+            value: https://{{ .Values.ingress.host }}
+{{- else }}
+            value: http://{{ .Values.ingress.host }}
+{{- end }}
+{{- end }}
+        volumeMounts:
+          {{- if ne .Values.database.type "derby"}}
+          {{ if or (.Values.extLibVolume.size) (.Values.extLibVolume.existingClaimName) -}}
+          - name: "{{ $fullName }}-{{ .Values.extLibVolume.name }}"
+            mountPath: "/opt/ibm-ucd/server/ext_lib"
+          {{- end }}
+          {{- end }}
+          - name: "{{ $fullName }}-{{ .Values.appDataVolume.name }}"
+            mountPath: "/opt/ibm-ucd/server/appdata"
+          {{- if $extLibCm }}
+          - name: user-script
+            mountPath: "/tmp/user-script"
+          {{- end }}
+          {{- if eq (((.Values.global).platform).enabled) (true) }}
+          - name: platform-config
+            mountPath: /opt/ibm-ucd/server/platform-config
+          {{- end }}
+          {{- if and (.Values.secureConnections.required) (.Values.secureConnections.tlsSecret) }}
+          - name: tls-certs
+            mountPath: /opt/ibm-ucd/server/tlscert
+          {{- end }}
+        resources:
+          {{- if .Values.resources.constraints.enabled}}
+          limits:
+{{ toYaml .Values.resources.limits | indent 12 }}
+          requests:
+{{ toYaml .Values.resources.requests | indent 12 }}
+          {{- end }}
+      containers:
+      - name: {{ .Chart.Name }}
+        image: {{ $imageSpec | quote }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          privileged: false
+          readOnlyRootFilesystem: false
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+{{- if not (.Capabilities.APIVersions.Has "security.openshift.io/v1") }}
+          runAsUser: 1001
+{{- end }}
+          capabilities:
+            drop:
+            - ALL
+        ports:
+        {{- if .Values.secureConnections.required }}
+        - containerPort: 8443
+        {{- else }}
+        - containerPort: 8080
+        {{- end }}
+        - containerPort: 7919
+        readinessProbe:
+          httpGet:
+            {{- if eq (((.Values.global).platform).enabled) (true) }}
+            path: {{ .Values.ingress.path }}/connTest.txt
+            {{- else }}
+            path: /connTest.txt
+            {{- end }}
+            {{- if .Values.secureConnections.required }}
+            port: 8443
+            scheme: HTTPS
+            {{- else }}
+            port: 8080
+            scheme: HTTP
+            {{- end }}
+          initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+        livenessProbe:
+          httpGet:
+            {{- if eq (((.Values.global).platform).enabled) (true) }}
+            path: {{ .Values.ingress.path }}/connTest.txt
+            {{- else }}
+            path: /connTest.txt
+            {{- end }}
+            {{- if .Values.secureConnections.required }}
+            port: 8443
+            scheme: HTTPS
+            {{- else }}
+            port: 8080
+            scheme: HTTP
+            {{- end }}
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+        env:
+          - name: UCD_PLATFORM_ENABLED
+            value: {{ ((.Values.global).platform).enabled | quote }}
+          {{- if eq (((.Values.global).platform).enabled) (true) }}
+          - name: UCD_INGRESS_PATH
+            value: {{ .Values.ingress.path | quote }}
+          {{- end }}
+          - name: UCD_INIT_PASSWD
+            valueFrom:
+              secretKeyRef:
+                {{- if .Values.secret.name }}
+                name: {{ .Values.secret.name }}
+                {{- else }}
+                name: {{ .Release.Name }}-secrets
+                {{- end }}
+                key: initpassword
+          - name: UCD_STS
+            value: {{ .Release.Name }}
+          - name: JDK_JAVA_OPTIONS
+            value: "-Dcom.redhat.fips=false"
+          - name: JAVA_TOOL_OPTIONS
+            value: "-Dcom.redhat.fips=false"
+        volumeMounts:
+          {{- if ne .Values.database.type "derby"}}
+          {{ if or (.Values.extLibVolume.size) (.Values.extLibVolume.existingClaimName) -}}
+          - name: "{{ $fullName }}-{{ .Values.extLibVolume.name }}"
+            mountPath: "/opt/ibm-ucd/server/ext_lib"
+          {{- end }}
+          {{- end }}
+          - name: "{{ $fullName }}-{{ .Values.appDataVolume.name }}"
+            mountPath: "/opt/ibm-ucd/server/appdata"
+          {{- if $extLibCm }}
+          - name: user-script
+            mountPath: "/tmp/user-script"
+          {{- end }}
+          {{- if eq (((.Values.global).platform).enabled) (true) }}
+          - name: platform-config
+            mountPath: /opt/ibm-ucd/server/platform-config
+          {{- end }}
+          {{- if and (.Values.secureConnections.required) (.Values.secureConnections.tlsSecret) }}
+          - name: tls-certs
+            mountPath: /opt/ibm-ucd/server/tlscert
+          {{- end }}
+        resources:
+          {{- if .Values.resources.constraints.enabled}}
+          limits:
+{{ toYaml .Values.resources.limits | indent 12 }}
+          requests:
+{{ toYaml .Values.resources.requests | indent 12 }}
+          {{- end }}
+      imagePullSecrets:
+      {{- if (lookup "v1" "Secret" .Release.Namespace "ibm-entitlement-key") }}
+      - name: ibm-entitlement-key
+      {{- end }}
+      {{- if .Values.image.secret }}
+      - name: {{ .Values.image.secret }}
+      {{- end }}
+      {{- if eq (((.Values.global).platform).enabled) (true) }}
+      {{- with .Values.global.imagePullSecrets }}
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- end }}
+      volumes:
+      {{- if ne .Values.database.type "derby"}}
+      {{ if or (.Values.extLibVolume.size) (.Values.extLibVolume.existingClaimName) -}}
+      - name: "{{ $fullName }}-{{ .Values.extLibVolume.name }}"
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          {{- if .Values.extLibVolume.existingClaimName }}
+          claimName: {{ .Values.extLibVolume.existingClaimName }}
+          {{- else }}
+          claimName: {{ $fullName }}-{{ .Values.extLibVolume.name }}
+          {{- end }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      {{- end }}
+      {{- end }}
+      - name: "{{ $fullName }}-{{ .Values.appDataVolume.name }}"
+      {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+        {{- if .Values.appDataVolume.existingClaimName }}
+          claimName: {{ .Values.appDataVolume.existingClaimName }}
+        {{- else }}
+          claimName: {{ $fullName }}-{{ .Values.appDataVolume.name }}
+        {{- end }}
+      {{- else }}
+        emptyDir: {}
+      {{- end }}
+      {{- if $extLibCm }}
+      - name: user-script
+        configMap:
+          name: {{ $extLibCm }}
+          defaultMode: 0744
+      {{- end }}
+      {{- if eq (((.Values.global).platform).enabled) (true) }}
+      - name: platform-config
+        configMap:
+          name: {{ .Release.Name }}-platform-config
+      {{- end }}
+      {{- if and (.Values.secureConnections.required) (.Values.secureConnections.tlsSecret) }}
+      - name: tls-certs
+        secret:
+          secretName: {{ .Values.secureConnections.tlsSecret }}
+      {{- end }}
+{{- end }}
+

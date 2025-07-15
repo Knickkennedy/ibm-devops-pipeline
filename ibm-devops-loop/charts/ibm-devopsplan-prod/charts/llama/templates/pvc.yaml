@@ -1,0 +1,41 @@
+{{- if (and .Values.persistentVolume.enabled (not .Values.persistentVolume.existingClaim)) -}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  {{- if .Values.persistentVolume.annotations }}
+  annotations:
+{{ toYaml .Values.persistentVolume.annotations | indent 4 }}
+  {{- end }}
+  labels:
+    {{- include "ollama.labels" . | nindent 4 }}
+  name: {{ template "ollama.fullname" . }}
+  namespace: {{ include "ollama.namespace" . }}
+spec:
+  accessModes:
+{{ toYaml .Values.persistentVolume.accessModes | indent 4 }}
+{{- if and (.Values.persistentVolume.ccm.storageClass) (.Capabilities.APIVersions.Has "route.openshift.io/v1") }}
+  storageClassName: '{{ .Values.persistentVolume.ccm.storageClass }}'
+{{- else if .Values.global.storageClass }}
+  storageClassName: '{{ .Values.global.storageClass }}'
+{{- else if .Values.global.persistence.rwxStorageClass }}
+  storageClassName: {{ .Values.global.persistence.rwxStorageClass | quote }}
+{{- else if .Values.global.persistence.rwoStorageClass }}
+  storageClassName: {{ .Values.global.persistence.rwoStorageClass | quote }}
+{{- else if .Values.persistentVolume.storageClass }}
+{{- if (eq "-" .Values.persistentVolume.storageClass) }}
+  storageClassName: ""
+{{- else }}
+  storageClassName: "{{ .Values.persistentVolume.storageClass }}"
+{{- end }}
+{{- end }}
+{{- if .Values.persistentVolume.volumeMode }}
+  volumeMode: "{{ .Values.persistentVolume.volumeMode }}"
+{{- end }}
+{{- if .Values.persistentVolume.volumeName }}
+  volumeName: "{{ .Values.persistentVolume.volumeName }}"
+{{- end }}
+  resources:
+    requests:
+      storage: "{{ .Values.persistentVolume.size }}"
+{{- end -}}

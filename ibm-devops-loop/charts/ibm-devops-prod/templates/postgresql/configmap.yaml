@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app.kubernetes.io/instance: '{{ .Release.Name }}'
+    app.kubernetes.io/managed-by: '{{ .Release.Service }}'
+    app.kubernetes.io/name: postgresql
+    app.kubernetes.io/part-of: '{{ .Chart.Name }}'
+    app.kubernetes.io/version: '{{ regexReplaceAll "-.*" .Chart.AppVersion "" }}'
+    helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version }}'
+  name: '{{ .Release.Name }}-postgresql'
+data:
+  postgresql.conf: |
+    # Actual max RAM = shared_buffers + (temp_buffers + work_mem) * max_connections
+    shared_buffers = '12MB'
+    work_mem = '1MB'
+
+    log_lock_waits = on
+    lock_timeout = 1min
+    deadlock_timeout = 30s
+{{- if .Values.postgresql.debugEnabled }}
+    pg_stat_statements.max = 10000
+    pg_stat_statements.track = all
+{{- end }}

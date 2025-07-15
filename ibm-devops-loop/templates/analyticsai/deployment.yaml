@@ -1,0 +1,119 @@
+{{- include "devops-platform.checkRequiredValues" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "devops-platform.componentFullname" (dict "componentName" "analyticsai" "context" .) }}
+  labels:
+      {{- include "devops-platform.labels" (dict "componentName" "analyticsai" "context" .) | nindent 6 }}
+spec:
+  replicas: {{ .Values.analyticsai.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "devops-platform.selectorLabels" (dict "componentName" "analyticsai" "context" .) | nindent 6 }}
+  template:
+    metadata:
+      {{- with (mergeOverwrite (deepCopy .Values.platform.deploymentAnnotations) .Values.analyticsai.deploymentAnnotations) }}
+      annotations:
+        {{- range $key, $value := . }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+      {{- end }}
+      labels:
+        {{- include "devops-platform.labels" (dict "componentName" "analyticsai" "context" .) | nindent 8 }}
+        {{- with (mergeOverwrite (deepCopy .Values.platform.podLabels) .Values.analyticsai.podLabels) }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "devops-platform.serviceAccountName" (dict "componentName" "analyticsai" "context" .) }}
+      {{- with (mergeOverwrite (deepCopy .Values.platform.podAnnotations) .Values.analyticsai.podAnnotations) }}
+      annotations:
+        {{- range $key, $value := . }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+      {{- end }}
+      securityContext:
+        {{- with .Values.analyticsai.podSecurityContext | default .Values.platform.podSecurityContext }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+      initContainers:
+{{- $image := include "devops-platform.image" (dict "componentName" "analyticsai" "context" .) -}}
+{{- "\n" }}{{- "containers:" | nindent 6 }}
+        - name: {{ .Values.analyticsai.name }}
+          {{- with .Values.analyticsai.securityContext | default .Values.platform.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: {{ include "devops-platform.image" (dict "componentName" "analyticsai" "context" .) }}
+          imagePullPolicy: {{ .Values.analyticsai.imagePullPolicy | default .Values.platform.imagePullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.analyticsai.service.port | default 8080}}
+              protocol: TCP
+          env:
+{{- template "devops-platform.container.product-env" . }}
+            - name: CLIENT_ID
+              value: {{ index .Values "tenant" "platform" "oidc" "clientId" }}
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  key: oauth-client-secret
+                  name: '{{ tpl (index .Values "tenant" "platform" "oidc" "clientSecret") . }}'
+            - name: INGRESS_DOMAIN
+              value: '{{ .Values.global.domain }}'
+            - name: BASE_NAME
+              value: {{ .Values.global.platform.path | quote }}
+            - name: BASE_URL_TEST
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devops-prod" "ingress" "path" }}'
+            - name: BASE_URL_PLAN
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "ingress" "path" }}'
+            - name: BASE_URL_CONTROL
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "control" "ingress" "path" }}'
+            - name: BASE_URL_MEASURE
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-ucv-prod" "ingress" "path" }}/valuestreams'
+            - name: BASE_URL_RELEASE
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-ucv-prod" "ingress" "path" }}/releases'
+            - name: BASE_URL_DEPLOY
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-ucd-prod" "ingress" "path" }}'
+            - name: BASE_URL_CODE
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopscode" "ingress" "path" }}'
+            - name: BASE_URL_KEYCLOAK
+              value: 'https://{{ .Values.global.domain }}{{ index .Values "ibm-devopsplan-prod" "keycloak" "authServerPath" }}'
+            - name: OLLAMA_URL
+              value: http://{{ .Release.Name }}-llama:11434
+            - name: REALM_NAME
+              value: {{ index .Values "ibm-devops-prod" "keycloak" "realm" }}
+          {{- with .Values.licensing.livenessProbe | default .Values.platform.livenessProbe }}
+          {{- if .enabled }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- with (.Values.licensing.readinessProbe) | default .Values.platform.readinessProbe }}
+          {{- if .enabled }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.analyticsai.resources | nindent 12 }}
+{{- "volumeMounts:" | nindent 10 }}
+
+      {{- with .Values.analyticsai.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.analyticsai.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.analyticsai.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+{{- template "devops-platform.volumes.tmp-volume" $ }}
+{{- template "devops-platform.volumes.keycloak-init-sh" $ }}

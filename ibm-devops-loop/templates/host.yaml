@@ -1,0 +1,33 @@
+{{- if (.Capabilities.APIVersions.Has "getambassador.io/v2") }}
+{{- if .Values.emissary.host.enabled }}
+apiVersion: getambassador.io/v3alpha1
+kind: Host
+metadata:
+  name: {{ include "devops-platform.componentFullname" (dict "componentName" "host" "context" .) }}
+  labels: {{- include "devops-platform.labels" (dict "componentName" "host" "context" .) | nindent 4 }}
+spec:
+{{- if .Values.global.ambassadorID }}
+  ambassador_id: [ '{{ .Values.global.ambassadorID }}' ]
+{{- end }}
+  hostname: '*'
+  acmeProvider:
+    authority: {{ .Values.emissary.host.authority }}
+
+{{- $certSecretName := "" -}}
+{{- if eq .Chart.Name "hcl-devops-loop" }}
+  {{- $certSecretName = .Values.global.hclCertSecretName }}
+{{- else }}
+  {{- $certSecretName = .Values.global.ibmCertSecretName }}
+{{- end -}}
+
+{{- if $certSecretName }}
+  tlsSecret:
+    name: {{ $certSecretName }}
+  tls:
+    alpn_protocols: h2,h2c,http/1.1
+{{- end }}
+  requestPolicy:
+    insecure:
+      action: Redirect 
+{{- end }}
+{{- end }}
