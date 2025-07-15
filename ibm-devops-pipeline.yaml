@@ -63,13 +63,9 @@ spec:
       taskSpec:
         steps:
           - name: deploy-mongo
-            image: quay.io/openshift/origin-cli:4.16
+            image: docker.io/knickkennedy/k8s-tools@sha256:542002707d909d25b3ed05654f77c514a507b1fc916ad3d44adb5a672adb4299
             script: |
               #!/bin/bash
-
-              curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-              chmod 700 get_helm.sh
-              ./get_helm.sh
 
               MONGO_CHART_VERSION="$(params.mongo-chart-version)"
               MONGO_IMAGE_TAG="$(params.mongo-image-tag)"
@@ -95,12 +91,9 @@ spec:
       taskSpec:
         steps:
           - name: deploy-loop
-            image: quay.io/openshift/origin-cli:4.16
+            image: docker.io/knickkennedy/k8s-tools@sha256:542002707d909d25b3ed05654f77c514a507b1fc916ad3d44adb5a672adb4299
             script: |
               #!/bin/bash
-              curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-              chmod 700 get_helm.sh
-              ./get_helm.sh
 
               helm repo add ibm-helm https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
 
@@ -124,6 +117,10 @@ spec:
               EMAIL_SERVER_PASSWORD="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"
               EMAIL_SERVER_STARTTLS=false
               EMAIL_SERVER_SMTPS=false
+
+              TLS_CERT_SECRET_NAME=ibm-devops-tls-secret
+
+              oc create secret tls ${TLS_CERT_SECRET_NAME} --cert=/app/content-automation-devops-chained.pem --key=/app/content-automation-devops.key -n $(params.namespace)
 
               ACCEPT_LICENSE=true
               HELM_NAME=$(params.devops-loop-helm-name)
