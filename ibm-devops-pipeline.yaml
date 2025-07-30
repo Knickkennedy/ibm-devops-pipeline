@@ -133,7 +133,9 @@ spec:
               --set global.platform.smtp.startTLS=${EMAIL_SERVER_STARTTLS} \
               --set global.platform.smtp.smtps=${EMAIL_SERVER_SMTPS} \
               --set license=${ACCEPT_LICENSE} \
-              --set ibm-devopsplan-prod.persistence.ccm.storageClass=ocs-external-storagecluster-ceph-rbd
+              --set ibm-devopsplan-prod.persistence.ccm.storageClass=ocs-external-storagecluster-ceph-rbd \
+              --set ibm-devopsplan-prod.llama.persistentVolume.ccm.storageClass=ocs-external-storagecluster-ceph-rbd \
+              --set ibm-devopsplan-prod.llama.enabled=true
               "
 
               LICENSE_SERVER="$(params.license-server)"
