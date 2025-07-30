@@ -66,11 +66,6 @@ spec:
             image: quay.io/openshift/origin-cli:4.16
             script: |
               #!/bin/bash
-
-              curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-              chmod 700 get_helm.sh
-              ./get_helm.sh
-
               MONGO_CHART_VERSION="$(params.mongo-chart-version)"
               MONGO_IMAGE_TAG="$(params.mongo-image-tag)"
               MONGO_IMAGE_REPO="$(params.mongo-image-repo)"
@@ -88,19 +83,18 @@ spec:
               helm upgrade --wait --timeout 600s --install ${MONGO_HELM_RELEASE_NAME} --version ${MONGO_CHART_VERSION} ${MONGO_INSTALL_OPTIONS} --namespace=${MONGO_NAMESPACE} --create-namespace bitnami/mongodb 
               MONGODB_ROOT_PASSWORD=$(oc get secret --namespace ${MONGO_NAMESPACE} ${MONGO_HELM_RELEASE_NAME}-mongodb -o jsonpath="{.data.mongodb-root-password}" | base64 -d)
               MONGO_URL="mongodb://root:${MONGODB_ROOT_PASSWORD}@${MONGO_HELM_RELEASE_NAME}-mongodb:27017/admin"
-
+              echo "MongoDB URL: ${MONGO_URL}"
+              echo "MongoDB root password: ${MONGODB_ROOT_PASSWORD}"
+              oc create secret generic mongodb-url-secret --namespace $(params.namespace) --from-literal=password="${MONGO_URL}"
     - name: deploy-ibm-ucv-helm-chart
       runAfter:
         - deploy-mongodb
       taskSpec:
         steps:
           - name: deploy-loop
-            image: quay.io/openshift/origin-cli:4.16
+            image: "docker.io/knickkennedy/k8s-tools@sha256:542002707d909d25b3ed05654f77c514a507b1fc916ad3d44adb5a672adb4299"
             script: |
               #!/bin/bash
-              curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-              chmod 700 get_helm.sh
-              ./get_helm.sh
 
               helm repo add ibm-helm https://raw.githubusercontent.com/IBM/charts/master/repo/ibm-helm
 
@@ -138,13 +132,13 @@ spec:
               --set global.platform.smtp.password=${EMAIL_SERVER_PASSWORD} \
               --set global.platform.smtp.startTLS=${EMAIL_SERVER_STARTTLS} \
               --set global.platform.smtp.smtps=${EMAIL_SERVER_SMTPS} \
-              --set global.ibmCertSecretName=${TLS_CERT_SECRET_NAME} \
-              --set license=${ACCEPT_LICENSE}
+              --set license=${ACCEPT_LICENSE} \
+              --set ibm-devopsplan-prod.persistence.ccm.storageClass=ocs-external-storagecluster-ceph-rbd
               "
 
               LICENSE_SERVER="$(params.license-server)"
               RWX_STORAGE_CLASS="$(params.file-storage-class)"
-              RWO_STORAGE_CLASS="$(params.file-storage-class)"
+              RWO_STORAGE_CLASS="$(params.block-storage-class)"
 
               if [ -n "${LICENSE_SERVER}" ]; then
                   HELM_OPTIONS="${HELM_OPTIONS} --set global.rationalLicenseKeyServer=@${LICENSE_SERVER}"
@@ -159,4 +153,4 @@ spec:
               fi
 
               HELM_OPTIONS="${HELM_OPTIONS} ${ADDITIONAL_HELM_OPTIONS}"
-              helm upgrade --wait --timeout 600s --install ${HELM_NAME} ${ROOT_DIR} --version "$(params.loop-version)" ${HELM_OPTIONS} -n $(params.namespace) -f ${ROOT_DIR}/values-openshift.yaml
+              helm upgrade --install ${HELM_NAME} ${ROOT_DIR} --version "$(params.loop-version)" ${HELM_OPTIONS} -n $(params.namespace) -f ${ROOT_DIR}/values-openshift.yaml
