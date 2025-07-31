@@ -135,7 +135,8 @@ spec:
               --set license=${ACCEPT_LICENSE} \
               --set ibm-devopsplan-prod.persistence.ccm.storageClass=ocs-external-storagecluster-ceph-rbd \
               --set ibm-devopsplan-prod.llama.persistentVolume.ccm.storageClass=ocs-external-storagecluster-ceph-rbd \
-              --set ibm-devopsplan-prod.llama.enabled=true
+              --set ibm-devopsplan-prod.llama.enabled=true \
+              --set ibm-devopsplan-prod.winInstall.accessModes[0]=ReadWriteMany
               "
 
               LICENSE_SERVER="$(params.license-server)"
