@@ -139,7 +139,15 @@ spec:
               --set ibm-devopsplan-prod.persistence.ccm.data.accessModes[0]=ReadWriteMany \
               --set ibm-devopsplan-prod.persistence.ccm.config.accessModes[0]=ReadWriteMany \
               --set ibm-devopsplan-prod.persistence.ccm.share.accessModes[0]=ReadWriteMany \
-              --set ibm-devopsplan-prod.persistence.ccm.logs.accessModes[0]=ReadWriteMany
+              --set ibm-devopsplan-prod.persistence.ccm.logs.accessModes[0]=ReadWriteMany \
+              --set ibm-devopsplan-prod.persistence.analytics.data.accessModes[0]=ReadWriteMany \
+              --set ibm-devopsplan-prod.persistence.analytics.config.accessModes[0]=ReadWriteMany \
+              --set ibm-devopsplan-prod.persistence.analytics.share.accessModes[0]=ReadWriteMany \
+              --set ibm-devopsplan-prod.persistence.analytics.logs.accessModes[0]=ReadWriteMany \
+              --set ibm-devopsplan-prod.persistence.search.data.accessModes[0]=ReadWriteMany \
+              --set ibm-devopsplan-prod.persistence.search.config.accessModes[0]=ReadWriteMany \
+              --set ibm-devopsplan-prod.persistence.search.share.accessModes[0]=ReadWriteMany \
+              --set ibm-devopsplan-prod.persistence.search.logs.accessModes[0]=ReadWriteMany 
               "
 
               LICENSE_SERVER="$(params.license-server)"
