@@ -152,7 +152,7 @@ spec:
 
               LICENSE_SERVER="$(params.license-server)"
               RWX_STORAGE_CLASS="$(params.file-storage-class)"
-              RWO_STORAGE_CLASS="$(params.block-storage-class)"
+              RWO_STORAGE_CLASS="$(params.file-storage-class)"
 
               if [ -n "${LICENSE_SERVER}" ]; then
                   HELM_OPTIONS="${HELM_OPTIONS} --set global.rationalLicenseKeyServer=@${LICENSE_SERVER}"
