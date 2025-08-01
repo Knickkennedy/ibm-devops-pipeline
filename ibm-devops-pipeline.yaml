@@ -133,10 +133,13 @@ spec:
               --set global.platform.smtp.startTLS=${EMAIL_SERVER_STARTTLS} \
               --set global.platform.smtp.smtps=${EMAIL_SERVER_SMTPS} \
               --set license=${ACCEPT_LICENSE} \
-              --set ibm-devopsplan-prod.persistence.ccm.storageClass=ocs-external-storagecluster-ceph-rbd \
-              --set ibm-devopsplan-prod.llama.persistentVolume.ccm.storageClass=ocs-external-storagecluster-ceph-rbd \
+              --set ibm-devopsplan-prod.persistence.ccm.storageClass=ocs-external-storagecluster-cephfs \
+              --set ibm-devopsplan-prod.llama.persistentVolume.ccm.storageClass=ocs-external-storagecluster-cephfs \
               --set ibm-devopsplan-prod.llama.enabled=true \
-              --set ibm-devopsplan-prod.winInstall.accessModes[0]=ReadWriteMany
+              --set ibm-devopsplan-prod.persistence.ccm.data.accessModes[0]=ReadWriteMany \
+              --set ibm-devopsplan-prod.persistence.ccm.config.accessModes[0]=ReadWriteMany \
+              --set ibm-devopsplan-prod.persistence.ccm.share.accessModes[0]=ReadWriteMany \
+              --set ibm-devopsplan-prod.persistence.ccm.logs.accessModes[0]=ReadWriteMany
               "
 
               LICENSE_SERVER="$(params.license-server)"
