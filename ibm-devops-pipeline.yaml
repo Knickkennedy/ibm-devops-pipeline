@@ -38,7 +38,7 @@ spec:
       default: ocs-external-storagecluster-ceph-rbd
     - name: license-server
       type: string
-      default: "169.53.174.40"
+      default: "52.117.63.219"
     - name: loop-version
       type: string
       default: "1.0.2"
