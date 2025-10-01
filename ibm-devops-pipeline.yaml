@@ -20,7 +20,7 @@ spec:
       default: "6.0"
     - name: mongo-image-repo
       type: string
-      default: bitnami/mongodb
+      default: bitnamilegacy/mongodb
     - name: mongo-helm-release-name
       type: string
       default: devops-loop-mongo
